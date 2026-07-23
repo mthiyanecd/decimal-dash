@@ -1,0 +1,1031 @@
+<!DOCTYPE html>
+<html lang="en-ZA">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Explorer Dash</title>
+<style>
+:root{
+  --purple:#6c4ce0; --purple-d:#54389f; --teal:#12b5a5; --teal-d:#0d8c80;
+  --bg:#f4f2fc; --card:#ffffff; --ink:#2b2350; --sub:#6f6a8a;
+  --good:#1fa552; --bad:#e0485a; --warn:#f2a51a; --line:#e6e2f5;
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);
+  font-family:-apple-system,'SF Pro Rounded',BlinkMacSystemFont,'Segoe UI',sans-serif;
+  height:100%; overscroll-behavior:none;}
+#app{max-width:820px;margin:0 auto;padding:14px 16px 40px;min-height:100%;}
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:6px 2px 12px;}
+.brand{font-weight:800;font-size:20px;color:var(--purple);letter-spacing:.3px;}
+.brand span{color:var(--teal);}
+.streak{font-weight:700;color:var(--warn);font-size:16px;}
+.pbar{height:12px;background:#e4dff7;border-radius:8px;overflow:hidden;margin:2px 0 16px;}
+.pbar>div{height:100%;background:linear-gradient(90deg,var(--teal),var(--purple));border-radius:8px;transition:width .4s;}
+.card{background:var(--card);border-radius:20px;padding:20px;box-shadow:0 3px 14px rgba(80,60,160,.08);margin-bottom:16px;}
+.study{border:2px solid var(--purple);border-radius:16px;padding:14px 16px;background:#faf9ff;margin:12px 0;}
+.study h4{margin:0 0 8px;color:var(--purple);font-size:15px;}
+h1{font-size:26px;margin:8px 0 6px;} h2{font-size:21px;margin:4px 0 10px;}
+p{line-height:1.5;} .sub{color:var(--sub);font-size:15px;}
+.big{font-size:22px;line-height:1.6;}
+.qtext{font-size:22px;line-height:1.7;margin:6px 0 14px;}
+.qtext u{text-decoration-color:var(--teal);text-decoration-thickness:3px;}
+.frac{display:inline-flex;flex-direction:column;align-items:center;vertical-align:middle;margin:0 3px;font-size:.8em;line-height:1.15;}
+.frac>span:first-child{border-bottom:2px solid var(--ink);padding:0 4px;}
+.frac>span:last-child{padding:0 4px;}
+.btn{display:block;width:100%;border:none;border-radius:16px;padding:16px;font-size:19px;font-weight:700;
+  font-family:inherit;cursor:pointer;margin-top:12px;min-height:58px;}
+.btn:active{transform:scale(.985);}
+.btn-main{background:var(--purple);color:#fff;}
+.btn-teal{background:var(--teal);color:#fff;}
+.btn-soft{background:#ece8fb;color:var(--purple-d);}
+.btn-ghost{background:none;color:var(--sub);font-weight:600;font-size:16px;min-height:44px;padding:10px;}
+.btn:disabled{opacity:.45;}
+.choices{display:flex;flex-direction:column;gap:10px;margin:10px 0;}
+.choices.row{flex-direction:row;} .choices.row .choice{flex:1;text-align:center;font-size:26px;}
+.choice{border:2px solid var(--line);background:#fff;border-radius:14px;padding:14px 16px;font-size:20px;
+  font-weight:600;font-family:inherit;cursor:pointer;color:var(--ink);}
+.choice.sel{border-color:var(--purple);background:#f1edff;}
+.answer-row{display:flex;align-items:center;gap:10px;margin:8px 0;}
+.answer-row label{font-size:18px;font-weight:700;}
+input.ans{flex:1;border:2px solid var(--line);border-radius:14px;padding:14px;font-size:24px;font-family:inherit;
+  min-width:120px;background:#fff;color:var(--ink);}
+input.ans:focus{outline:none;border-color:var(--teal);}
+.canvas-wrap{border:2px dashed #cfc8ee;border-radius:16px;background:#fff;position:relative;margin:12px 0 4px;}
+.canvas-label{position:absolute;top:8px;left:12px;color:#b9b2d8;font-size:14px;font-weight:600;pointer-events:none;}
+canvas.work{width:100%;height:240px;border-radius:14px;touch-action:none;display:block;}
+.tools{display:flex;gap:8px;margin:6px 0 2px;}
+.tool{flex:0 0 auto;border:2px solid var(--line);background:#fff;border-radius:12px;padding:8px 14px;
+  font-size:15px;font-weight:700;font-family:inherit;color:var(--sub);cursor:pointer;}
+.tool.on{border-color:var(--teal);color:var(--teal-d);background:#eafaf8;}
+.feedback{border-radius:16px;padding:14px 16px;margin-top:12px;font-size:18px;line-height:1.5;}
+.fb-good{background:#e6f7ec;border:2px solid var(--good);}
+.fb-bad{background:#fdeef0;border:2px solid var(--bad);}
+.fb-hint{background:#fff8e8;border:2px solid var(--warn);}
+.sol{background:#f1edff;border:2px solid var(--purple);border-radius:16px;padding:14px 16px;margin-top:12px;font-size:18px;line-height:1.7;}
+.mastery{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:14px 0;}
+.skill-tile{background:#fff;border-radius:14px;padding:12px;border:2px solid var(--line);}
+.skill-tile b{font-size:14px;display:block;margin-bottom:6px;}
+.meter{height:10px;background:#eee9fb;border-radius:6px;overflow:hidden;}
+.meter>div{height:100%;border-radius:6px;transition:width .5s;}
+.badges{display:flex;flex-wrap:wrap;gap:10px;margin:10px 0;}
+.badge{background:#fff;border:2px solid var(--line);border-radius:14px;padding:10px 12px;font-size:15px;font-weight:700;}
+.badge.won{border-color:var(--warn);background:#fff8e8;}
+.center{text-align:center;}
+.emoji-big{font-size:56px;margin:10px 0;}
+.timer{font-size:30px;font-weight:800;color:var(--purple);text-align:center;letter-spacing:1px;}
+.timer.low{color:var(--bad);}
+table.dash{width:100%;border-collapse:collapse;font-size:15px;}
+table.dash th,table.dash td{padding:8px 6px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top;}
+.pill{display:inline-block;border-radius:10px;padding:2px 10px;font-size:13px;font-weight:700;color:#fff;}
+.pill.g{background:var(--good);} .pill.b{background:var(--bad);} .pill.w{background:var(--warn);}
+img.hw{max-width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+textarea.note{width:100%;border:2px solid var(--line);border-radius:12px;padding:10px;font-family:inherit;font-size:16px;min-height:60px;}
+.small{font-size:14px;color:var(--sub);}
+.rowflex{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+svg.nline{width:100%;height:auto;margin:8px 0;}
+.hidden{display:none;}
+a.linkbtn{display:block;text-align:center;text-decoration:none;}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+"use strict";
+/* ============ utilities ============ */
+const $=s=>document.querySelector(s);
+const app=document.getElementById('app');
+const ri=(a,b)=>a+Math.floor(Math.random()*(b-a+1));
+const pick=a=>a[Math.floor(Math.random()*a.length)];
+const shuffle=a=>{a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;};
+const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+/* decimals as scaled integers: fmt(v,dp) -> SA comma string. fmt(1234,2)="12,34" */
+function fmt(v,dp){ if(dp===0) return String(v);
+  let s=String(Math.abs(v)).padStart(dp+1,'0');
+  let w=s.slice(0,-dp), f=s.slice(-dp);
+  return (v<0?'−':'')+w+','+f; }
+function trimz(str){ /* remove unnecessary zeros from "5,080" -> "5,08" */
+  if(!str.includes(',')) return str;
+  let [w,f]=str.split(','); f=f.replace(/0+$/,'');
+  return f.length? w+','+f : w; }
+function parseNum(s){ if(s==null)return null; s=String(s).trim().replace(/\s+/g,'').replace(',','.').replace('−','-');
+  if(!/^-?(\d+\.?\d*|\.\d+)$/.test(s)) return null; return parseFloat(s); }
+function numEq(a,b){ return Math.abs(a-b)<1e-9; }
+function gcd(a,b){a=Math.abs(a);b=Math.abs(b);while(b){[a,b]=[b,a%b];}return a||1;}
+function parseFrac(s){ /* "3/4", "2 3/4", "0,75", "1,5" -> [num,den] or null */
+  if(s==null) return null; s=String(s).trim().replace('−','-');
+  let m=s.match(/^(-?\d+)\s+(\d+)\s*\/\s*(\d+)$/); if(m){const w=+m[1],n=+m[2],d=+m[3]; if(!d)return null; return [w*d+(w<0?-n:n), d];}
+  m=s.match(/^(-?\d+)\s*\/\s*(\d+)$/); if(m){ if(!+m[2])return null; return [+m[1],+m[2]]; }
+  const f=parseNum(s); if(f==null) return null;
+  const dp=(String(s).split(/[.,]/)[1]||'').length; const d=Math.pow(10,dp);
+  return [Math.round(f*d), d]; }
+function fracEq(a,b){ const A=parseFrac(a),B=parseFrac(b); if(!A||!B)return false; return A[0]*B[1]===B[0]*A[1]; }
+function isFracForm(s){ return /\//.test(String(s)); }
+function isSimplest(s){ const A=parseFrac(s); if(!A) return false;
+  const m=String(s).trim().match(/^(?:(-?\d+)\s+)?(-?\d+)\s*\/\s*(\d+)$/);
+  if(!m) return false; return gcd(+m[2],+m[3])===1; }
+function fr(n,d){ return '<span class="frac"><span>'+n+'</span><span>'+d+'</span></span>'; }
+function mixedfr(w,n,d){ return '<b>'+w+'</b>'+fr(n,d); }
+const COLNAMES=['units','tenths','hundredths','thousandths','tens','hundreds'];
+function digitAt(v,dp,col){ /* col: 'tenths'|'hundredths'|'thousandths'|'units'|'tens' for scaled int v,dp */
+  const s=String(v).padStart(dp+1,'0'); const w=s.slice(0,s.length-dp)||'0', f=s.slice(s.length-dp);
+  switch(col){case 'tenths':return f[0]||'0';case 'hundredths':return f[1]||'0';case 'thousandths':return f[2]||'0';
+    case 'units':return w[w.length-1];case 'tens':return w.length>1?w[w.length-2]:'0';case 'hundreds':return w.length>2?w[w.length-3]:'0';}
+  return '0';}
+function words(n){ /* whole number to words, n < 10000 */
+  const ones=['zero','one','two','three','four','five','six','seven','eight','nine','ten','eleven','twelve','thirteen','fourteen','fifteen','sixteen','seventeen','eighteen','nineteen'];
+  const tens=['','','twenty','thirty','forty','fifty','sixty','seventy','eighty','ninety'];
+  if(n<20)return ones[n];
+  if(n<100)return tens[Math.floor(n/10)]+(n%10?' '+ones[n%10]:'');
+  if(n<1000){const h=ones[Math.floor(n/100)]+' hundred';return n%100?h+' and '+words(n%100):h;}
+  const t=ones[Math.floor(n/1000)]+' thousand';const r=n%1000;
+  if(!r)return t; if(r<100)return t+' and '+words(r); return t+' '+words(r);}
+function digitsInWords(f){ const ones=['zero','one','two','three','four','five','six','seven','eight','nine'];
+  return f.split('').map(c=>ones[+c]).join(' ');}
+/* ============ skills (Paper 2) ============ */
+const SKILLS={
+ s1:{name:'Mapungubwe: Origins & Geography',emoji:'🏔️',color:'#b45309',essential:true},
+ s2:{name:'Mapungubwe: Society & Gold',emoji:'🦏',color:'#d97706',essential:true},
+ s3:{name:'Trade & the Indian Ocean',emoji:'🐘',color:'#0e7490',essential:true},
+ s4:{name:'Great Zimbabwe',emoji:'🪨',color:'#15803d',essential:true},
+ s5:{name:'Marco Polo',emoji:'🧭',color:'#7c3aed',essential:false},
+ s6:{name:'Renaissance & Exploration',emoji:'🎨',color:'#be123c',essential:true},
+ s7:{name:'New Ideas & Inventions',emoji:'⚙️',color:'#4f46e5',essential:true},
+ s8:{name:'Religion & the Reformation',emoji:'⛪',color:'#0891b2',essential:false},
+ s9:{name:'da Vinci & Galileo',emoji:'🔭',color:'#9333ea',essential:true},
+ s10:{name:'Explorers: Dias & da Gama',emoji:'⛵',color:'#2563eb',essential:true}
+};
+const LESSONS={
+ s1:{title:'Mapungubwe: Origins & Geography',html:
+  `<div class="study"><h4>📖 Study</h4>
+   <p>About <b>900 AD</b>, African farmers moved south from Zimbabwe and east from Botswana and settled in the <b>Limpopo Valley</b>. The population grew because of <b>better farming</b>, <b>iron-working technology</b> and the <b>growth of trade networks</b>.</p>
+   <p><b>Mapungubwe</b> was the <b>first state in southern Africa</b> (about 1200–1300), in the <b>BuKalanga Kingdom</b>, where the <b>Shashe</b> and <b>Limpopo</b> rivers meet (in Limpopo province). It was discovered by <b>Mr E.S.J. van Graan</b> and his son on <b>31 December 1932</b>. The name means <b>"hill of jackals"</b> (also "place of wisdom").</p>
+   <p>It had rich soil for <b>millet, sorghum and cotton</b>, gold-bearing rock and herds of elephants (ivory). The site had three areas: <b>Mapungubwe hill</b> (top), the <b>Southern Terrace</b>, and <b>K2 / Bambanyanalo</b> (below the hill). Steep, narrow paths made it easy to defend.</p></div>`},
+ s2:{title:'Mapungubwe: Society & Gold',html:
+  `<div class="study"><h4>📖 Study</h4>
+   <p>Mapungubwe was the first society in southern Africa with a <b>social class system</b>. There were <b>three classes</b>: the <b>royal family</b> (top of the hill), the <b>leaders and advisors</b> (smaller hills), and the <b>commoners</b> (low-lying areas). The <b>king</b> lived at the top, close to the ancestors, and was a <b>sacred leader</b> (he could communicate with ancestors and make rain).</p>
+   <p>Most people were <b>subsistence farmers</b> (they farmed just enough for their own needs) who also hunted. Rich people were buried in the hills with gold and copper. The famous <b>golden rhinoceros</b> (about <b>15 cm</b> long, gold beaten over a wooden core) is the symbol of Mapungubwe. Other gold objects: a <b>sceptre</b> (a sign of leadership) and gold <b>beads</b> and a gold <b>bowl</b>. The remains were <b>reburied</b> on <b>20 November 2007</b>.</p></div>`},
+ s3:{title:'Trade & the Indian Ocean',html:
+  `<div class="study"><h4>📖 Study</h4>
+   <p>Mapungubwe was rich in <b>gold</b> and <b>ivory</b>, so it became an important <b>trade hub</b>. It traded with Great Zimbabwe and with traders from the <b>Arabian Peninsula</b> and the Far East (Saudi Arabia, Iran, Pakistan, India and China).</p>
+   <p>Mapungubwe <b>exported</b>: ivory, gold, animal hides and gold-tanned leather. It <b>imported</b> from the East: <b>spices, fine pottery, cloth and glass beads</b>. Groups carried gold and ivory over <b>500 km</b> to the coast, hiding gold inside tortoise shells and travelling at <b>night</b>, using the <b>stars</b> to navigate.</p>
+   <p>Some Arab traders settled on the east coast and married local people. A new language, <b>Swahili</b> (a mix of African and Arab languages), developed. Through trade Mapungubwe connected to the world … the beginning of <b>globalisation</b>.</p></div>`},
+ s4:{title:'Great Zimbabwe',html:
+  `<div class="study"><h4>📖 Study</h4>
+   <p><b>Great Zimbabwe</b> was a great African civilisation from medieval times, the centre of the <b>Kingdom of Mutapa</b>, and today a <b>UNESCO World Heritage site</b>. The name comes from the Shona word <b>"imbabwe" = "stone house"</b>. Up to <b>20 000</b> people lived there.</p>
+   <p>It has <b>three sections</b>: the <b>Hill Complex</b> (the oldest, first stones about AD 900), the <b>Valley Ruins</b> (clay and mud brick houses), and the <b>Great Enclosure</b> (outer wall 250 m around, about 900 000 stone blocks, where the royal family lived).</p>
+   <p>The people were ancestors of the <b>Shona</b>. They grew sorghum, millet and cow peas, and kept cattle. They traded with <b>China and the Arab world</b> (Indian beads, Chinese porcelain, Arab glassware were found). It ended (possibly from over-grazing); people moved north to the <b>Mutapa State</b> or south to the <b>Torwa State</b>. Only <b>2%</b> has been excavated.</p></div>`},
+ s5:{title:'Marco Polo',html:
+  `<div class="study"><h4>📖 Study</h4>
+   <p><b>Marco Polo</b> was one of the most well-travelled men of the <b>13th century</b>, born in <b>Venice, Italy, in 1254</b>, into a wealthy family of merchant travellers. His father was <b>Niccolò</b> and his uncle <b>Maffeo</b>. He set off at about <b>17</b>.</p>
+   <p>The Polos travelled through Armenia, Persia and Afghanistan to <b>China</b>, even crossing the <b>Gobi Desert</b>. They met <b>Kublai Khan</b>, emperor of the <b>Mongol empire</b>. Marco worked for him for <b>17 years</b> as a governor and tax inspector.</p>
+   <p>Back in Venice he was captured in a war against <b>Genoa</b>. In prison a cell-mate wrote down his stories in <b>"The Travels of Marco Polo"</b>. He described <b>gunpowder, paper money and the magnetic compass</b>. Many thought he was lying and called the book <i>Il Milione</i> ("the million lies").</p></div>`},
+ s6:{title:'Renaissance & Reasons for Exploration',html:
+  `<div class="study"><h4>📖 Study</h4>
+   <p>The <b>Renaissance</b> means <b>"rebirth"</b>. It was the period in Europe right after the Middle Ages that <b>began in Italy</b> (about the 12th–14th century), with new interest in learning, art and science. New inventions included paper, gunpowder and the magnetic compass.</p>
+   <p><b>Reasons for European exploration:</b> to find <b>spices, silk, gold</b>, medicines and precious stones; to find <b>sea routes and trading partners</b>; to <b>expand knowledge and empire</b>; and to <b>spread religion</b>.</p>
+   <p>The <b>spice trade</b> was the world's biggest industry. The <b>Silk Road</b> connected Asia to Europe overland. <b>Venice</b> controlled the spice trade and charged very high prices, so Europeans had to find a <b>new sea route</b> to the East. Popular spices: <b>pepper, cinnamon, nutmeg, ginger and cloves</b> (pepper preserved meat).</p></div>`},
+ s7:{title:'New Ideas & Inventions',html:
+  `<div class="study"><h4>📖 Study</h4>
+   <p><b>Gunpowder</b> was the first chemical explosive, one of the "Four Great Inventions" of <b>China</b>. It reached Europe along the <b>Silk Road</b>.</p>
+   <p>The <b>magnetic compass</b> (from China, 12th century) showed sailors which <b>direction</b> they were travelling.</p>
+   <p>The <b>printing press</b>: <b>Johannes Gutenberg</b> printed the <b>Gutenberg Bible in 1452</b>. It made books cheap and available, starting an "information revolution" (like the Internet today) … and let people read the Bible themselves.</p>
+   <p>The <b>caravel</b> was a small, easily-steered <b>Portuguese</b> sailing ship (15th century) with <b>lateen sails</b> that could sail into the wind, used to explore the West African coast.</p></div>`},
+ s8:{title:'Religion & the Reformation',html:
+  `<div class="study"><h4>📖 Study</h4>
+   <p>The printing press let new ideas and the <b>Bible</b> spread. The <b>Roman Catholic Church</b> had been the only church in Western Europe, but it began to <b>decline</b>.</p>
+   <p><b>Martin Luther</b> sparked the <b>Reformation</b> in <b>1517</b> by nailing his <b>95 Theses</b> to the door of the Castle Church in <b>Wittenberg, Germany</b>. He was angry about the selling of <b>indulgences</b>. His followers broke away and became known as <b>Protestants</b>.</p>
+   <p>The Reformation split Europe into <b>Protestant</b> and <b>Roman Catholic</b> countries, which often went to war with each other.</p></div>`},
+ s9:{title:'Leonardo da Vinci & Galileo Galilei',html:
+  `<div class="study"><h4>📖 Study</h4>
+   <p><b>Leonardo da Vinci</b> (<b>1452–1519</b>) was born near Vinci in Northern Italy. At 14 he became an <b>apprentice</b> to the sculptor <b>Verrocchio</b>. He studied anatomy and invented a flying machine, the <b>Ornithopter</b>. He painted the <b>Mona Lisa</b> (also called <i>La Gioconda</i>) and wrote his notebooks in <b>mirror writing</b> (backwards). After his death it went to the King of France.</p>
+   <p><b>Galileo Galilei</b> (<b>1564–1642</b>) was an Italian <b>astronomer</b>. He built a <b>telescope</b> and supported the <b>Copernican theory</b> (the Earth and planets go around the <b>Sun</b>). He saw that the <b>Milky Way</b> is made of stars, and found <b>moons around Jupiter</b>. The Church accused him of <b>heresy</b> twice.</p></div>`},
+ s10:{title:'Explorers: Dias & da Gama',html:
+  `<div class="study"><h4>📖 Study</h4>
+   <p>Portugal and Spain led the <b>Age of Exploration</b>. The <b>Treaty of Tordesillas</b> divided up the New World: Spain got most of the Americas, Portugal got Brazil, India and Asia.</p>
+   <p><b>Bartolomeu Dias</b> was the <b>first European to sail around the Cape of Good Hope</b>. King John II sent him; in <b>1487–1488</b> he rounded the Cape, reached <b>Mossel Bay</b> (3 Feb 1488, meeting the Khoikhoi), and turned back at Kwaaihoek where he put up a <b>padrão</b> (stone cross).</p>
+   <p><b>Vasco da Gama</b> (1460–1524) found the <b>sea route to India</b>. He sailed from Lisbon in <b>1497</b> (patron King Manuel I), rounded the Cape, and reached <b>Calicut, India, on 20 May 1498</b>. Many crew died of <b>scurvy</b> (lack of Vitamin C). He returned in 1499 a hero, later became <b>viceroy</b>, and died in India in <b>1524</b>.</p></div>`}
+};
+</script>
+<script>
+"use strict";
+/* ===== Explorer Dash · History content ===== */
+let SEQ=0; function newId(t){return t+'-'+(++SEQ)+'-'+Date.now()%100000;}
+function mc(marks,diff,prompt,correct,wrong,sol,hint){return {input:'choice',marks,diff,prompt,choices:shuffle([correct].concat(wrong)),ans:correct,sol,hints:[hint]};}
+function fl(marks,diff,prompt,ans,alt,sol,hint,ph){return {input:'text',marks,diff,prompt,ans,alt:alt||[],sol,hints:[hint],placeholder:ph||'write here ✏️'};}
+function tf(marks,diff,statement,isTrue,sol,hint){return {input:'choice',marks,diff,prompt:'<b>True</b> or <b>false?</b><br>'+statement,choices:['True','False'],ans:isTrue?'True':'False',sol,hints:[hint]};}
+function wr(marks,diff,prompt,model,rubric,hint){return {input:'draw',marks,diff,prompt,model,sol:rubric,hints:[hint]};}
+const TYPES={}; const SKILL_TYPES={};
+function reg(id,skill,draw,pool){ TYPES[id]={draw:!!draw,gen:fx=>{const f=(fx&&fx.i!=null)?pool[fx.i%pool.length]:pick(pool); const it=f(); it.skill=skill; return it;}}; (SKILL_TYPES[skill]=SKILL_TYPES[skill]||[]).push(id); }
+
+/* ---------- s1 Mapungubwe origins & geography ---------- */
+reg('s1q','s1',false,[
+ ()=>mc(1,1,'Who discovered Mapungubwe?','Mr van Graan and his son',['Marco Polo','Vasco da Gama','King Manuel I'],'Mr E.S.J. van Graan and his son climbed the hill on 31 December 1932.','Think of the man who climbed the sandstone hill in 1932.'),
+ ()=>mc(1,2,'On what date was Mapungubwe discovered?','31 December 1932',['20 November 2007','1 December 1932','31 December 1923'],'Van Graan climbed the hill on 31 December 1932.','It was the very last day of a year in the 1930s.'),
+ ()=>fl(1,2,'What does the name "Mapungubwe" mean? (two words)','hill of jackals',['place of jackals','hill of the jackals'],'It is thought to mean "hill of jackals" (also "place of wisdom").','It is a hill where a certain wild dog-like animal eats.'),
+ ()=>mc(2,2,'Which two rivers meet at Mapungubwe?','The Shashe and Limpopo',['The Nile and Limpopo','The Zambezi and Shashe','The Vaal and Orange'],'Mapungubwe is where the Shashe and Limpopo rivers meet.','One of them also gives its name to the province.'),
+ ()=>mc(2,2,'Which three crops were grown at Mapungubwe?','Millet, sorghum and cotton',['Wheat, maize and rice','Millet, maize and tea','Sorghum, sugar and coffee'],'The rich soil grew millet, sorghum and cotton.','One is used to make cloth, the other two are grains.'),
+ ()=>mc(1,1,'Mapungubwe was the first what in southern Africa?','The first state',['The first city in the world','The first Portuguese colony','The first church'],'Mapungubwe was the first state in southern Africa (about 1200–1300).','It was a whole organised kingdom, the first of its kind here.'),
+ ()=>mc(2,3,'What were the three areas of Mapungubwe?','Mapungubwe hill, the Southern Terrace and K2',['Hill Complex, Valley Ruins and Great Enclosure','North, South and Central','Venice, Genoa and Calicut'],'The site had Mapungubwe hill (top), the Southern Terrace, and K2 / Bambanyanalo.','Do not mix these up with the three sections of Great Zimbabwe.'),
+ ()=>fl(1,2,'In about which year did African farmers first settle in the Limpopo Valley?','900',['900 AD','AD 900'],'About 900 AD, farmers moved south and settled in the Limpopo Valley.','It is a round number, about 300 years before Mapungubwe was a state.'),
+ ()=>tf(1,2,'Mapungubwe was easy for enemies to attack.',false,'False. Steep, narrow paths made it easy to spot and stop invaders, so it was well protected.','Remember the steep, narrow paths up the hill.'),
+ ()=>mc(1,2,'In which present-day province is Mapungubwe?','Limpopo',['Gauteng','Western Cape','KwaZulu-Natal'],'Mapungubwe is in the Limpopo province, near the Limpopo River.','It shares its name with a big river in the north.')
+]);
+reg('s1w','s1',true,[
+ ()=>wr(3,3,'Name <b>three</b> geographical features that made Mapungubwe a good place to settle. Write your three points, then check them against the model.',
+   'Any three of: <b>near the Shashe and Limpopo rivers</b> (water); <b>rich soil</b> for millet, sorghum and cotton; <b>gold-bearing rock</b> nearby; <b>herds of elephants</b> for ivory; <b>steep, narrow paths</b> that were easy to defend; good grazing for cattle.',
+   '<b>Mark scheme (3):</b> 1 mark for each correct geographical feature, up to 3.','Think water, food/soil, and safety.')
+]);
+
+/* ---------- s2 Mapungubwe society & gold ---------- */
+reg('s2q','s2',false,[
+ ()=>mc(1,1,'How many social classes were there at Mapungubwe?','Three',['Two','Four','Five'],'There were three classes: the royal family, the leaders/advisors, and the commoners.','Royals, leaders, and ordinary people.'),
+ ()=>mc(1,2,'Who lived at the top of Mapungubwe hill?','The royal family (the king)',['The commoners','The traders','The Portuguese'],'The king and royal family lived at the top, close to the ancestors.','The most important people lived highest up.'),
+ ()=>mc(2,2,'About how long is the famous golden rhinoceros?','About 15 cm',['About 15 metres','About 1 metre','About 50 cm'],'The golden rhino is only about 15 cm long, gold beaten over a wooden core.','It is small enough to hold in your hands.'),
+ ()=>fl(1,2,'Which golden animal is the symbol of Mapungubwe?','golden rhinoceros',['rhinoceros','golden rhino','gold rhino','rhino'],'The golden rhinoceros is the best-known Mapungubwe gold object.','It is a large horned animal, made of gold.'),
+ ()=>mc(2,3,'What does it mean that the people were "subsistence farmers"?','They farmed just enough for their own needs',['They sold all their crops to Europe','They only kept gold','They did not farm at all'],'Subsistence farmers grow just enough food for their own needs, and also hunted.','"Subsist" means to survive on just enough.'),
+ ()=>mc(1,2,'On what date were the Mapungubwe remains reburied?','20 November 2007',['31 December 1932','20 November 1997','2 November 2007'],'The South African Government reburied the remains on 20 November 2007.','It happened in the 2000s, long after the discovery.'),
+ ()=>mc(1,2,'A golden sceptre was a symbol of what?','Leadership',['Farming','Trade','Rain'],'A sceptre (a short staff) was a symbol of leadership; many African leaders still carry them.','Leaders still carry a special staff today.'),
+ ()=>tf(1,2,'At Mapungubwe, only rich and powerful people could own gold.',true,'True. Gold was scarce and hard to get, so only the rich and powerful owned it.','Gold was scarce and valuable.'),
+ ()=>mc(2,3,'Why did the king live at the top of the hill?','To be close to the ancestors and show his importance',['Because it was warmer','To be near the river','To hide from traders'],'Being on top showed his status and kept him close to the ancestors, giving him rain-making and sacred power.','It was about status and the ancestors, not comfort.'),
+ ()=>fl(1,2,'A leader who can communicate with the ancestors is called a ____ leader.','sacred',['a sacred leader','holy'],'A sacred leader could speak to the ancestors and make rain.','It starts with "s" and means holy or blessed.')
+]);
+reg('s2w','s2',true,[
+ ()=>wr(3,3,'Describe the <b>three social classes</b> of Mapungubwe society and where each lived.',
+   '<b>Royal family</b> … lived at the <b>top</b> of Mapungubwe hill. <b>Leaders and advisors</b> … lived on the tops of <b>smaller hills</b>. <b>Commoners</b> … lived in the <b>low-lying areas</b>, mostly within the western wall.',
+   '<b>Mark scheme (3):</b> 1 mark for each class correctly named and placed.','Highest, middle, lowest ground.')
+]);
+
+/* ---------- s3 Trade & the Indian Ocean ---------- */
+reg('s3q','s3',false,[
+ ()=>mc(2,2,'Which goods did Mapungubwe mainly EXPORT (sell)?','Gold and ivory',['Spices and cloth','Glass beads and pottery','Tea and silk'],'Mapungubwe exported gold, ivory, hides and gold-tanned leather.','Think of what they had lots of: elephants and gold-bearing rock.'),
+ ()=>mc(2,2,'Which goods did Mapungubwe IMPORT (buy) from the East?','Spices, cloth and glass beads',['Gold and ivory','Cattle and sheep','Millet and sorghum'],'From the East they got spices, fine pottery, cloth and glass beads.','These came from far away by sea, not from Africa.'),
+ ()=>fl(1,2,'A new language, a mix of African and Arab languages, developed on the east coast. What was it called?','Swahili',['swahili'],'Swahili developed when Arab traders settled and married local people.','It starts with "Sw".'),
+ ()=>mc(2,2,'About how far did traders carry goods to reach the coast?','Over 500 km',['About 50 km','About 5 000 km','About 100 km'],'The journey to the coast was over 500 km and took several weeks.','It was hundreds of kilometres, taking weeks.'),
+ ()=>mc(1,3,'How did traders hide gold from robbers on the journey?','Inside tortoise shells',['Inside their shoes','Buried in the sand','In clay pots'],'They often hid gold inside objects such as tortoise shells.','Inside a hard animal shell.'),
+ ()=>mc(1,3,'How did the trading parties find their way at night?','They used the stars',['They used a compass','They followed rivers','They used maps from Europe'],'They walked at night when it was cooler and used the stars to navigate.','Look up at the night sky.'),
+ ()=>fl(1,2,'Trade connected Mapungubwe to the world. This was the beginning of ____.','globalisation',['globalization'],'Connecting to places across the world was the beginning of globalisation.','A long word meaning the whole world becoming connected.'),
+ ()=>tf(1,2,'Ivory (from elephant tusks) was a valuable trade good at Mapungubwe.',true,'True. Mapungubwe had many elephants, making it a major source of valuable ivory.','Think about the elephant herds.')
+]);
+reg('s3w','s3',true,[
+ ()=>wr(6,3,'Write a short paragraph describing how <b>trade at Mapungubwe</b> took place. Try to include: the goods traded, how they travelled to the coast, the dangers, and one consequence of the trade.',
+   '<b>Model:</b> Mapungubwe exported <b>gold and ivory</b> and received <b>spices, cloth and glass beads</b>. Young, strong men carried the goods over <b>500 km</b> to the east coast, hiding gold in <b>tortoise shells</b>. They walked at <b>night</b> and used the <b>stars</b> to navigate, facing dangers like <b>wild animals and robbers</b>. Trade made Mapungubwe <b>wealthy and powerful</b> and connected it to the world (the start of <b>globalisation</b>), and <b>Swahili</b> developed on the coast.',
+   '<b>Mark scheme (6):</b> goods (1) · route/coast (1) · how they travelled/navigated (1) · a danger (1) · a consequence, e.g. wealth or globalisation (1) · clear, ordered writing (1).','Cover: what, how far, how they travelled, the dangers, and the result.')
+]);
+
+/* ---------- s4 Great Zimbabwe ---------- */
+reg('s4q','s4',false,[
+ ()=>fl(2,2,'The name "Zimbabwe" comes from the Shona word "imbabwe". What does it mean? (two words)','stone house',['stone houses','house of stone'],'"Imbabwe" is Shona for "stone house".','Think of what the ruins are built from.'),
+ ()=>mc(2,3,'What are the three sections of Great Zimbabwe?','The Hill Complex, the Valley Ruins and the Great Enclosure',['The hilltop, Southern Terrace and K2','Mutapa, Torwa and Shona','Lisbon, Venice and Calicut'],'Great Zimbabwe has the Hill Complex (oldest), the Valley Ruins, and the Great Enclosure.','Do not confuse these with the three areas of Mapungubwe.'),
+ ()=>mc(1,2,'About how many people lived at Great Zimbabwe?','About 20 000',['About 2 000','About 5 000','About 200 000'],'It is estimated that up to 20 000 people lived at Great Zimbabwe.','Twice the number that lived at Mapungubwe (5 000).'),
+ ()=>mc(1,2,'Great Zimbabwe was the centre of which kingdom?','The Kingdom of Mutapa',['The BuKalanga Kingdom','The Mongol empire','The Portuguese Empire'],'Great Zimbabwe was the centre of the Kingdom of Mutapa.','It starts with "M" and is also where people fled to afterwards.'),
+ ()=>mc(2,2,'Who is believed to have lived in the Great Enclosure?','The royal family',['The commoners','Portuguese traders','Arab sailors'],'The Great Enclosure, with its huge outer wall, is where the royal family lived.','The grandest, most walled part was for the most important people.'),
+ ()=>mc(1,3,'About what fraction of Great Zimbabwe has been excavated?','Only 2%',['About 50%','About 90%','All of it'],'Only about 2% has been excavated, so much is still unknown.','A very small part … almost nothing.'),
+ ()=>mc(2,3,'When Great Zimbabwe ended, where did the people go?','North to the Mutapa State and south to the Torwa State',['To Venice and Genoa','To Mapungubwe','Across the Indian Ocean'],'Those who went north started the Mutapa State; those who went south started the Torwa State.','One group north, one group south … two new states.'),
+ ()=>tf(1,1,'Great Zimbabwe is a UNESCO World Heritage site.',true,'True. The ruins are an extensive UNESCO World Heritage site.','It is world-famous and protected.'),
+ ()=>mc(2,2,'Which of these was found at Great Zimbabwe, showing trade with the East?','Chinese porcelain and Arab glassware',['Portuguese caravels','A golden rhinoceros','Gutenberg Bibles'],'Indian beads, Chinese porcelain and Arab glassware were found, showing wide trade.','Think of far-away goods: from China and the Arab world.')
+]);
+reg('s4w','s4',true,[
+ ()=>wr(2,3,'Name <b>two</b> ways in which Great Zimbabwe was <b>similar to Mapungubwe</b>.',
+   'Any two of: both were <b>rich African civilisations</b>; both <b>traded gold and ivory</b> with the East (China/Arab world); both had a <b>social class system</b> with royals living apart/higher; both grew <b>sorghum and millet</b> and kept cattle; both left <b>ruins/artefacts</b> studied by archaeologists.',
+   '<b>Mark scheme (2):</b> 1 mark for each correct similarity.','Think trade, classes, farming, or ruins.')
+]);
+
+/* ---------- s5 Marco Polo ---------- */
+reg('s5q','s5',false,[
+ ()=>mc(2,2,'Where and when was Marco Polo born?','Venice, Italy, in 1254',['Lisbon, Portugal, in 1254','Genoa, Italy, in 1298','Wittenberg, Germany, in 1452'],'Marco Polo was born in Venice, Italy, in 1254.','An Italian city famous for canals, in the 13th century.'),
+ ()=>mc(1,2,'Which emperor did Marco Polo work for?','Kublai Khan',['King Manuel I','King John II','Martin Luther'],'The Polos met Kublai Khan, emperor of the Mongol empire.','The Mongol emperor of China.'),
+ ()=>mc(1,2,'For about how many years did Marco Polo work for the emperor?','17 years',['7 years','70 years','2 years'],'Marco Polo worked for Kublai Khan for 17 years.','More than a decade … the same number as Luther\'s year minus 1500.'),
+ ()=>fl(1,2,'What is the name of the famous book about Marco Polo\'s journeys? "The ____ of Marco Polo"','Travels',['The Travels of Marco Polo','travels'],'His stories were published as "The Travels of Marco Polo".','It is about all his journeys.'),
+ ()=>mc(1,3,'Which desert did the Polos cross on their way to China?','The Gobi Desert',['The Sahara Desert','The Kalahari Desert','The Namib Desert'],'They crossed the Gobi Desert on the way to China.','A famous cold desert in Asia.'),
+ ()=>mc(2,3,'People doubted Marco Polo, calling his book "Il Milione". What does that mean?','The million lies',['The great truth','A million miles','The million coins'],'"Il Milione" means "the million lies" … many thought he made it up.','It suggests he told a huge number of untrue things.'),
+ ()=>mc(1,3,'Marco Polo was captured and imprisoned in a war against which city?','Genoa',['Venice','Calicut','Lisbon'],'Back home, Venice was at war with Genoa, and Polo was captured.','Another Italian city, a rival of Venice.'),
+ ()=>tf(1,2,'When Marco Polo\'s book was first published, everyone believed it was true.',false,'False. Many people thought it was fiction and called it "the million lies".','Remember the nickname "Il Milione".')
+]);
+
+/* ---------- s6 Renaissance & reasons for exploration ---------- */
+reg('s6q','s6',false,[
+ ()=>fl(1,1,'The word "Renaissance" means what? (one word)','rebirth',['a rebirth','re-birth'],'"Renaissance" means "rebirth", the period right after the Middle Ages.','It means being born again.'),
+ ()=>mc(1,2,'In which country did the Renaissance begin?','Italy',['Portugal','China','Germany'],'The Renaissance started in Italy after a new interest in classical learning.','The same country as Venice and Marco Polo.'),
+ ()=>mc(2,3,'Which of these was a reason for European exploration?','To find spices, gold and new sea routes',['To escape the Renaissance','To build the Silk Road','To visit Mapungubwe'],'Reasons included finding spices, silk and gold, new sea routes and trading partners, expanding knowledge/empire, and spreading religion.','Think riches, routes, and religion.'),
+ ()=>mc(2,2,'What was the Silk Road?','An overland trade route connecting Asia with Europe',['A sea route around Africa','A road in Venice','A Portuguese ship'],'The Silk Road was the important overland route connecting Asia with the Mediterranean and Europe.','It carried silk and spices over land, not sea.'),
+ ()=>mc(2,3,'Why did Europeans need to find a new route to the East?','Venice controlled the spice trade and charged very high prices',['The Silk Road was under the sea','Spices were banned in Europe','China stopped making silk'],'Venice charged huge, inflated prices for spices, so Europeans looked for a sea route of their own.','It was about the high prices charged by one city.'),
+ ()=>mc(1,2,'Which of these was a popular spice traded at the time?','Pepper',['Sugar','Coffee','Chocolate'],'Popular spices were pepper, cinnamon, nutmeg, ginger and cloves.','It is still on most dinner tables, next to salt.'),
+ ()=>mc(2,3,'Why was pepper so useful?','It was used to preserve and flavour meat',['It was used as money','It cured all diseases','It was used to build ships'],'Pepper preserved and flavoured meat because there were no fridges.','There were no fridges to keep meat fresh.'),
+ ()=>tf(1,2,'The spice trade was one of the biggest industries in the world.',true,'True. The spice trade was the world\'s biggest industry and led to the discovery of new lands.','Spices were hugely valuable and wanted everywhere.')
+]);
+reg('s6w','s6',true,[
+ ()=>wr(8,4,'<b>Exam question (8 marks).</b> Explain why European merchants needed to find a new sea route to the East. Write a full paragraph.',
+   '<b>Model:</b> Spices from the East were in huge demand in Europe but Europe had <b>no direct access</b> to them. The <b>Silk Road</b> was long and dangerous, and merchants had to pay <b>many taxes</b> travelling through different countries. <b>Venice</b> became the main spice port and, without competition, charged <b>very high (inflated) prices</b>. It was <b>expensive and difficult</b> to travel overland. So Europeans had to find an <b>alternative sea route</b> to obtain spices more cheaply and directly.',
+   '<b>Mark scheme (8):</b> demand for spices (1) · no direct access (1) · Silk Road long/dangerous (1) · taxes on the way (1) · Venice as middleman (1) · high/inflated prices (1) · overland expensive/difficult (1) · conclusion: needed a sea route (1).','Think: who controlled the spices, and why overland was expensive.')
+]);
+
+/* ---------- s7 New ideas & inventions ---------- */
+reg('s7q','s7',false,[
+ ()=>mc(1,2,'Gunpowder was one of the "Four Great Inventions" of which country?','China',['Italy','Portugal','Germany'],'Gunpowder came from Chinese alchemy and reached Europe along the Silk Road.','The same country Marco Polo visited.'),
+ ()=>mc(1,2,'What did the magnetic compass help explorers to do?','Know which direction they were travelling',['Measure time','See in the dark','Find spices'],'The compass, discovered in China, showed sailors their direction.','It points the way … north, south, east, west.'),
+ ()=>fl(1,2,'Who invented the printing press?','Gutenberg',['Johannes Gutenberg','Johann Gutenberg'],'Johannes Gutenberg printed the Gutenberg Bible in 1452.','His first name was Johannes.'),
+ ()=>mc(2,2,'In which year did Gutenberg print his famous Bible?','1452',['1552','1417','1488'],'Gutenberg printed 200 copies of the Gutenberg Bible in 1452.','In the middle of the 1400s.'),
+ ()=>mc(1,2,'The caravel was a small sailing ship developed by which country?','Portugal',['China','Italy','England'],'The caravel was developed by the Portuguese in the 15th century.','The same country as Dias and da Gama.'),
+ ()=>mc(2,3,'Why was the caravel special?','Its lateen sails let it sail into the wind',['It was made of gold','It could fly','It never needed a crew'],'The caravel had lateen sails, giving it speed and the ability to sail into the wind.','It is about its special sails and going against the wind.'),
+ ()=>mc(2,3,'The printing press started an "information revolution" like which modern thing?','The Internet',['The telescope','The compass','The caravel'],'The printing press spread information widely, just as the Internet does today.','Something you might use to look things up today.'),
+ ()=>tf(1,2,'Gunpowder reached Europe along the Silk Road.',true,'True. One theory is that gunpowder made its way to Europe along the Silk Road through the Middle East.','Think of the famous overland trade route.')
+]);
+reg('s7w','s7',true,[
+ ()=>wr(2,2,'Explain <b>one</b> way the Gutenberg printing press is similar to the Internet today.',
+   '<b>Model:</b> Both made <b>information available to many people</b> quickly and cheaply. The printing press let books (and the Bible) be produced in large numbers so ordinary people could read them, just as the Internet lets huge amounts of information reach everyone today.',
+   '<b>Mark scheme (2):</b> 1 mark for the idea of spreading information widely; 1 mark for a clear comparison.','Think about who can get information, and how much.')
+]);
+
+/* ---------- s8 Religion & the Reformation ---------- */
+reg('s8q','s8',false,[
+ ()=>fl(1,2,'Who sparked the Reformation in 1517?','Martin Luther',['Luther','Martin luther'],'Martin Luther sparked the Reformation in 1517.','His first name was Martin.'),
+ ()=>mc(1,2,'In which year did Martin Luther spark the Reformation?','1517',['1452','1488','1610'],'Luther posted his 95 Theses in 1517.','Just after 1500.'),
+ ()=>mc(2,2,'How many "Theses" did Luther post on the church door?','95',['9','59','195'],'He posted his 95 Theses on the Castle Church door.','Almost one hundred.'),
+ ()=>mc(2,3,'In which town did Luther post his Theses?','Wittenberg, Germany',['Venice, Italy','Lisbon, Portugal','Calicut, India'],'He nailed them to the door of the Castle Church in Wittenberg, Germany.','A town in Germany.'),
+ ()=>mc(2,3,'What was Luther mainly angry about?','The selling of indulgences',['The printing press','The spice trade','The caravel'],'Luther thought the selling of indulgences (paying to be forgiven) was sinful.','It was about paying money to the church to forgive sins.'),
+ ()=>fl(1,2,'Luther and his followers who broke away from the Roman Catholic Church became known as ____.','Protestants',['protestants','Protestant'],'They protested against the church, so they were called Protestants.','It sounds like the word "protest".'),
+ ()=>mc(1,2,'Which powerful church began to decline during this period?','The Roman Catholic Church',['The Protestant Church','The Church of England','The Mutapa Church'],'The Roman Catholic Church, once the only church in Western Europe, began to decline.','The original church, before the Protestants split off.'),
+ ()=>tf(1,2,'The Reformation split Europe into Protestant and Roman Catholic countries.',true,'True. The Reformation split Europe into Protestant and Roman Catholic countries that often went to war.','It divided Europe into two religious sides.')
+]);
+
+/* ---------- s9 da Vinci & Galileo ---------- */
+reg('s9q','s9',false,[
+ ()=>mc(2,2,'When was Leonardo da Vinci born and when did he die?','1452 to 1519',['1564 to 1642','1254 to 1324','1487 to 1524'],'Leonardo da Vinci lived from 1452 to 1519.','He was born the same year as the Gutenberg Bible.'),
+ ()=>mc(2,3,'Leonardo became an apprentice to which sculptor?','Verrocchio',['Kublai Khan','Michelangelo','Gutenberg'],'At 14, Leonardo became an apprentice to the sculptor Verrocchio.','It starts with "V".'),
+ ()=>fl(1,3,'What did Leonardo call his flying-machine invention?','Ornithopter',['the Ornithopter','ornithopter'],'Leonardo invented a flying machine called the Ornithopter.','It starts with "Or" and means bird-wing.'),
+ ()=>mc(1,1,'Which famous painting did Leonardo da Vinci paint?','The Mona Lisa',['The Golden Rhino','The 95 Theses','The Gutenberg Bible'],'Leonardo painted the Mona Lisa (also called La Gioconda).','A very famous portrait of a smiling woman.'),
+ ()=>mc(2,3,'How did Leonardo write in his notebooks?','In mirror writing (backwards)',['In Latin only','In gold ink','In Chinese'],'His notebooks had to be read in a mirror because the writing was backwards.','You would need a mirror to read it.'),
+ ()=>mc(2,2,'When did Galileo Galilei live?','1564 to 1642',['1452 to 1519','1254 to 1324','1487 to 1524'],'Galileo lived from 1564 to 1642.','He was born about 45 years after Leonardo died.'),
+ ()=>mc(1,2,'What did Galileo construct to study the sky?','A telescope',['A caravel','A compass','A printing press'],'Galileo constructed a telescope and studied the stars and planets.','You look through it to see far-away things.'),
+ ()=>mc(2,3,'What does the Copernican theory say?','The Earth and planets revolve around the Sun',['The Sun revolves around the Earth','The Earth is flat','The Moon is a planet'],'The Copernican theory says the Earth and all the planets revolve around the Sun.','Think about what is at the centre: the Sun.'),
+ ()=>mc(1,3,'Galileo discovered that there were moons around which planet?','Jupiter',['Mars','Venus','Saturn'],'He noticed moons around the planet Jupiter.','The biggest planet.'),
+ ()=>fl(1,3,'Galileo was twice accused of ____ by the church for his beliefs.','heresy',['heresies'],'He was accused of heresy (going against church teaching) twice.','It means holding beliefs against the church.')
+]);
+reg('s9w','s9',true,[
+ ()=>wr(3,3,'Define these three terms: (a) <b>apprentice</b> (b) <b>astronomer</b> (c) <b>telescope</b>.',
+   '<b>Model:</b> (a) An <b>apprentice</b> is someone who learns a skill or trade by working for an expert. (b) An <b>astronomer</b> is a person who studies the stars, planets and space. (c) A <b>telescope</b> is an instrument used to see faraway objects, such as stars, close up.',
+   '<b>Mark scheme (3):</b> 1 mark for each sensible definition.','Think: a learner, a star-studier, and a see-far tool.')
+]);
+
+/* ---------- s10 Explorers: Dias & da Gama ---------- */
+reg('s10q','s10',false,[
+ ()=>fl(2,2,'Who was the first European to sail around the Cape of Good Hope?','Bartolomeu Dias',['Dias','Bartholomew Dias','Bartolomeu dias'],'Bartolomeu Dias was the first European to sail around the Cape of Good Hope.','His surname starts with "D".'),
+ ()=>mc(2,2,'In which year did Dias reach Mossel Bay after rounding the Cape?','1488',['1498','1452','1524'],'Dias reached Mossel Bay on 3 February 1488.','Ten years before da Gama reached India.'),
+ ()=>mc(2,3,'What is a "padrão", which Dias set up?','A stone cross',['A ship','A spice','A type of sail'],'A padrão is a stone cross that explorers put up to mark where they had been.','It was made of stone and left as a marker.'),
+ ()=>mc(2,2,'Which Indian city did Vasco da Gama reach?','Calicut',['Lisbon','Venice','Mossel Bay'],'Da Gama reached Calicut, India, on 20 May 1498.','It is in India and starts with "C".'),
+ ()=>mc(2,2,'In which year did da Gama reach India?','1498',['1488','1452','1524'],'Vasco da Gama reached Calicut, India, in 1498.','Ten years after Dias rounded the Cape.'),
+ ()=>mc(2,3,'Many of da Gama\'s crew died of scurvy. What causes scurvy?','A lack of Vitamin C',['Too much gold','Bad weather','A lack of water'],'Scurvy is caused by a lack of Vitamin C.','It comes from missing a vitamin found in fruit.'),
+ ()=>fl(2,3,'Which treaty divided the New World between Portugal and Spain?','Treaty of Tordesillas',['Tordesillas','the Treaty of Tordesillas'],'The Treaty of Tordesillas divided the New World: Spain got the Americas, Portugal got Brazil, India and Asia.','It starts with "T" … Treaty of T______.'),
+ ()=>mc(1,3,'Who was Vasco da Gama\'s patron (the king who sent him)?','King Manuel I',['King John II','Kublai Khan','King Manuel III'],'Da Gama\'s patron was King Manuel I of Portugal.','A King Manuel … the first of that name.'),
+ ()=>mc(1,3,'After his voyages, what important position did da Gama later hold in India?','Viceroy',['King','Pope','Astronomer'],'King John III later sent da Gama to India as a Portuguese viceroy.','It means the king\'s representative, starting with "V".'),
+ ()=>tf(1,2,'Vasco da Gama found the sea route to India by sailing around Africa.',true,'True. Da Gama found the sea route to the East Indies by rounding the southern tip of Africa.','Remember he rounded the Cape of Good Hope.')
+]);
+reg('s10w','s10',true,[
+ ()=>fl(2,3,'Put these events in order, <b>earliest first</b>. Write the three letters, e.g. BCA.<br>A) Vasco da Gama reaches India (1498)<br>B) The Gutenberg Bible is printed (1452)<br>C) Dias rounds the Cape of Good Hope (1488)','BCA',['bca','B C A','B,C,A'],'Order by year: 1452 (B), 1488 (C), 1498 (A) → BCA.','Order them by year: which happened first, 1452, 1488 or 1498?','e.g. BCA'),
+ ()=>wr(4,4,'Describe <b>two differences</b> between the journeys of <b>Dias</b> and <b>da Gama</b>.',
+   '<b>Model:</b> <b>Dias</b> (1487–88) was the <b>first</b> to round the Cape of Good Hope but <b>turned back</b> at Kwaaihoek and did <b>not</b> reach India. <b>Da Gama</b> (1497–99) sailed <b>all the way to India</b> (Calicut, 1498) and opened the sea trade route. Dias set up a <b>padrão</b>; da Gama\'s crew suffered badly from <b>scurvy</b> and he later returned as an admiral/viceroy.',
+   '<b>Mark scheme (4):</b> 2 marks for each clear, correct difference (what each achieved / how far each went).','One turned back at the Cape; the other reached India.')
+]);
+
+/* ---------- builders ---------- */
+const DRAWTYPES=[];
+function makeItem(typeid,fx){ const it=TYPES[typeid].gen(fx||null); it.type=typeid; it.id=newId(typeid); return it; }
+function makeFromSkill(skill,diffCap,allowDraw){
+  let ts=SKILL_TYPES[skill].slice();
+  if(!allowDraw) ts=ts.filter(t=>!TYPES[t].draw);
+  if(!ts.length) ts=SKILL_TYPES[skill];
+  return makeItem(pick(ts));
+}
+const SKILL_LIST=Object.keys(SKILLS);
+function diagnosticSet(){
+  const spec=[['s1q',0],['s1q',3],['s3q',0],['s3q',2],['s4q',1],['s4q',3],['s2q',2],['s6q',1],['s6q',4],['s7q',3],['s9q',7],['s10q',3],['s10q',4],['s5q',1]];
+  return spec.map(a=>makeItem(a[0],{i:a[1]}));
+}
+function mockSet(){
+  const spec=[['s6q',0],['s1q',6],['s1q',3],['s2q',2],['s3q',0],['s3q',1],['s4q',1],['s4q',0],['s5q',0],['s7q',3],['s8q',2],['s9q',7],['s10q',0],['s10q',4],['s10w',0],['s3w',0]];
+  return spec.map(a=>makeItem(a[0],{i:a[1]}));
+}
+function warmSet(){ return [makeItem('s1q',{i:0}),makeItem('s6q',{i:0}),makeItem('s4q',{i:2})]; }
+function chalA(){ return [makeItem('s1q',{i:6}),makeItem('s2q',{i:8}),makeItem('s3q',{i:4}),makeItem('s4q',{i:6}),makeItem('s5q',{i:5})]; }
+function chalB(){ return [makeItem('s6q',{i:4}),makeItem('s7q',{i:5}),makeItem('s8q',{i:4}),makeItem('s9q',{i:7}),makeItem('s10q',{i:6})]; }
+function chalWrite(){ return [makeItem('s2w'),makeItem('s4w'),makeItem('s9w')]; }
+
+</script>
+<script>
+"use strict";
+/* ============ state ============ */
+const DEFAULT={name:'',pin:'',session:0,step:0,qi:0,cur:null,log:[],retryQueue:[],
+  mastery:{s1:50,s2:50,s3:50,s4:50,s5:50,s6:50,s7:50,s8:50,s9:50,s10:50},
+  diagDone:false,streak:0,best:0,badges:[],stars:0,sessStart:0,stretch:[false,false,false,false,false,false,false],
+  mockScore:null,mockTotal:35,done:[false,false,false,false,false,false,false],overrides:{},comments:{},inbox:[]};
+let S=load();
+function load(){ try{ const j=localStorage.getItem('histp2'); if(j) return Object.assign(JSON.parse(JSON.stringify(DEFAULT)),JSON.parse(j)); }catch(e){}
+  return JSON.parse(JSON.stringify(DEFAULT)); }
+function save(){ try{ localStorage.setItem('histp2',JSON.stringify(S)); }catch(e){
+  for(const a of S.log){ if(a.png){a.png=null;a.pngDropped=true;} if(JSON.stringify(S).length<4000000)break; }
+  try{localStorage.setItem('histp2',JSON.stringify(S));}catch(e2){} } }
+
+/* ============ adaptive ============ */
+function weakOrder(){ return Object.keys(SKILLS).sort((a,b)=>
+  (S.mastery[a]-(SKILLS[a].essential?15:0))-(S.mastery[b]-(SKILLS[b].essential?15:0))); }
+function pickPracticeItems(n,cap){
+  const w=weakOrder(); const pool=[w[0],w[0],w[1],w[1],w[2],w[3]];
+  const items=[]; for(let i=0;i<n;i++) items.push(makeFromSkill(pool[i%pool.length],cap,false));
+  return shuffle(items); }
+function masteredSkills(){ return Object.keys(SKILLS).filter(s=>S.mastery[s]>=70); }
+function confidenceItems(n){
+  const ms=masteredSkills(); const src=ms.length?ms:weakOrder().slice(-3);
+  const items=[];for(let i=0;i<n;i++)items.push(makeFromSkill(pick(src),2,false));
+  return items; }
+function updateMastery(skill,firstTry,correct,hints){
+  let d; if(correct&&firstTry&&!hints)d=14; else if(correct&&firstTry)d=8; else if(correct)d=5; else d=-12;
+  S.mastery[skill]=Math.max(0,Math.min(100,S.mastery[skill]+d)); }
+
+/* ============ badges ============ */
+const BADGES={
+ map:{name:'Mapungubwe Master 🏔️',test:()=>S.mastery.s1>=80},
+ gold:{name:'Gold Guardian 🦏',test:()=>S.mastery.s2>=80},
+ trade:{name:'Trade Trailblazer 🐘',test:()=>S.mastery.s3>=80},
+ stone:{name:'Stone City Scholar 🪨',test:()=>S.mastery.s4>=80},
+ renaissance:{name:'Renaissance Whiz 🎨',test:()=>S.mastery.s6>=80},
+ inventor:{name:'Bright Spark ⚙️',test:()=>S.mastery.s7>=80},
+ minds:{name:'Great Minds Medal 🔭',test:()=>S.mastery.s9>=80},
+ explorer:{name:'Master Explorer ⛵',test:()=>S.mastery.s10>=80},
+ streak5:{name:'On Fire! 🔥 (5 in a row)',test:()=>S.streak>=5},
+ streak10:{name:'Unstoppable ⚡ (10 in a row)',test:()=>S.streak>=10},
+ sess1:{name:'Time Traveller 🕰️ (Session 1 done)',test:()=>S.done[0]},
+ sess3:{name:'Booklet 1 Boss 📕 (Mapungubwe done)',test:()=>S.done[2]},
+ sess5:{name:'Renaissance Ready 🎨 (Session 5 done)',test:()=>S.done[4]},
+ ace:{name:'Exam Ace 🏆 (28+ in the mock)',test:()=>S.mockScore!=null&&S.mockScore>=28},
+ allsix:{name:'History Hero 🏅 (all 6 sessions)',test:()=>S.done[0]&&S.done[1]&&S.done[2]&&S.done[3]&&S.done[4]&&S.done[5]},
+ challenge:{name:'Challenge Crusher 🏆⚡',test:()=>S.done[6]}};
+function checkBadges(){ const won=[];
+  for(const k in BADGES){ if(!S.badges.includes(k)&&BADGES[k].test()){S.badges.push(k);won.push(BADGES[k].name);} }
+  return won; }
+
+/* ============ sessions ============ */
+const SESSIONS=[
+ {name:'Find the gaps 🕵️',steps:[
+   {k:'screen',id:'w1'},
+   {k:'quiz',mode:'warm',make:warmSet},
+   {k:'screen',id:'prediag'},
+   {k:'quiz',mode:'diag',make:diagnosticSet},
+   {k:'screen',id:'reveal'},
+   {k:'lesson',skill:'s1'},
+   {k:'quiz',mode:'practice',make:()=>[makeItem('s1q',{i:1}),makeItem('s1q',{i:2}),makeItem('s1q',{i:4}),makeItem('s1q',{i:6}),makeItem('s1w')]},
+   {k:'screen',id:'submit'}]},
+ {name:'Inside Mapungubwe 🦏',steps:[
+   {k:'screen',id:'w2'},
+   {k:'quiz',mode:'retry'},
+   {k:'lesson',skill:'s2'},
+   {k:'quiz',mode:'practice',make:()=>[makeItem('s2q',{i:0}),makeItem('s2q',{i:1}),makeItem('s2q',{i:2}),makeItem('s2q',{i:6}),makeItem('s2q',{i:8})]},
+   {k:'screen',id:'writeintro'},
+   {k:'quiz',mode:'practice',make:()=>[makeItem('s2w'),makeItem('s2q',{i:4})]},
+   {k:'screen',id:'submit'}]},
+ {name:'Trade & Great Zimbabwe 🐘',steps:[
+   {k:'screen',id:'w3'},
+   {k:'quiz',mode:'retry'},
+   {k:'lesson',skill:'s3'},
+   {k:'quiz',mode:'practice',make:()=>[makeItem('s3q',{i:0}),makeItem('s3q',{i:1}),makeItem('s3q',{i:2}),makeItem('s3q',{i:6}),makeItem('s3w')]},
+   {k:'lesson',skill:'s4'},
+   {k:'quiz',mode:'practice',make:()=>[makeItem('s4q',{i:0}),makeItem('s4q',{i:1}),makeItem('s4q',{i:6}),makeItem('s4q',{i:8}),makeItem('s4w')]},
+   {k:'lesson',skill:'s5'},
+   {k:'quiz',mode:'practice',make:()=>[makeItem('s5q',{i:0}),makeItem('s5q',{i:1}),makeItem('s5q',{i:3}),makeItem('s5q',{i:5})]},
+   {k:'screen',id:'submit'}]},
+ {name:'The Renaissance begins 🎨',steps:[
+   {k:'screen',id:'w4'},
+   {k:'quiz',mode:'retry'},
+   {k:'lesson',skill:'s6'},
+   {k:'quiz',mode:'practice',make:()=>[makeItem('s6q',{i:0}),makeItem('s6q',{i:1}),makeItem('s6q',{i:3}),makeItem('s6q',{i:4}),makeItem('s6q',{i:6})]},
+   {k:'screen',id:'writeintro'},
+   {k:'quiz',mode:'practice',make:()=>[makeItem('s6w')]},
+   {k:'screen',id:'submit'}]},
+ {name:'Great minds & new ideas ⚙️',steps:[
+   {k:'screen',id:'w5'},
+   {k:'quiz',mode:'retry'},
+   {k:'lesson',skill:'s7'},
+   {k:'quiz',mode:'practice',make:()=>[makeItem('s7q',{i:0}),makeItem('s7q',{i:2}),makeItem('s7q',{i:3}),makeItem('s7q',{i:5}),makeItem('s7w')]},
+   {k:'lesson',skill:'s8'},
+   {k:'quiz',mode:'practice',make:()=>[makeItem('s8q',{i:0}),makeItem('s8q',{i:2}),makeItem('s8q',{i:3}),makeItem('s8q',{i:4})]},
+   {k:'lesson',skill:'s9'},
+   {k:'quiz',mode:'practice',make:()=>[makeItem('s9q',{i:0}),makeItem('s9q',{i:1}),makeItem('s9q',{i:4}),makeItem('s9q',{i:7}),makeItem('s9w')]},
+   {k:'screen',id:'submit'}]},
+ {name:'Explorers & mock 🏆',steps:[
+   {k:'screen',id:'w6'},
+   {k:'quiz',mode:'retry'},
+   {k:'lesson',skill:'s10'},
+   {k:'quiz',mode:'practice',make:()=>[makeItem('s10q',{i:0}),makeItem('s10q',{i:1}),makeItem('s10q',{i:4}),makeItem('s10q',{i:6}),makeItem('s10w',{i:0})]},
+   {k:'screen',id:'mockintro'},
+   {k:'quiz',mode:'mock',make:mockSet},
+   {k:'screen',id:'mockresult'},
+   {k:'quiz',mode:'corrections'},
+   {k:'screen',id:'confintro'},
+   {k:'quiz',mode:'confidence',n:5},
+   {k:'screen',id:'submit'}]},
+ {name:'Extra Challenge 🏆⚡',steps:[
+   {k:'screen',id:'w7'},
+   {k:'quiz',mode:'retry'},
+   {k:'quiz',mode:'practice',make:chalA},
+   {k:'quiz',mode:'practice',make:chalB},
+   {k:'screen',id:'writeintro'},
+   {k:'quiz',mode:'practice',make:chalWrite},
+   {k:'screen',id:'submit'}]}];
+
+/* ============ answer checking ============ */
+function stripUnits(s){ return String(s).replace(/(kg|km|kℓ|kl|mℓ|ml|litres?|liters?|grams?|tons?|g|m|t|ℓ|l|r)\b/gi,'')
+  .replace(/[Rr]\s*(?=\d)/,'').trim(); }
+function checkAnswer(item,user){
+  if(item.input==='choice'||item.input==='compare') return user===item.ans;
+  let u=String(user||'').trim(); if(!u) return false;
+  const norm=x=>String(x).toLowerCase().replace(/[.,;:!?'"()’]/g,'').replace(/\s+/g,' ').replace(/^(the|a|an) /,'').trim();
+  const list=[item.ans].concat(item.alt||[]);
+  const un=norm(u);
+  return list.some(a=>norm(a)===un);
+}
+
+/* ============ rendering ============ */
+function header(pct){
+  const st=S.streak>=2?`<span class="streak">🔥 ${S.streak}</span>`:`<span class="streak">⭐ ${S.stars}</span>`;
+  return `<div class="topbar"><div class="brand">Explorer <span>Dash</span></div>${st}</div>
+    <div class="pbar"><div style="width:${pct||0}%"></div></div>`; }
+function sessionPct(){
+  const st=SESSIONS[S.session]; if(!st) return 100;
+  return Math.round(100*Math.min(S.step,st.steps.length)/st.steps.length); }
+function render(html){ app.innerHTML=html; window.scrollTo(0,0); }
+function go(){ save();
+  if(!S.name){ renderFirstRun(); return; }
+  if(S.session>=SESSIONS.length){ renderAllDone(); return; }
+  const st=SESSIONS[S.session].steps[S.step];
+  if(!st){ S.step=0; S.session++; save(); go(); return; }
+  if(st.k==='screen') renderScreen(st.id);
+  else if(st.k==='lesson') renderLesson(st);
+  else if(st.k==='quiz') startQuiz(st);
+}
+function nextStep(){ S.step++; S.qi=0; S.cur=null; save(); go(); }
+function renderFirstRun(){
+  render(`${header(0)}<div class="card center">
+    <div class="emoji-big">👋</div><h1>Hello! I'm Explorer Dash.</h1>
+    <p class="big">Together we'll get you ready for your <b>History Paper 2</b> exam … Mapungubwe, Great Zimbabwe and the great explorers!</p>
+    <p class="sub">What is your name?</p>
+    <input class="ans" id="nm" style="width:80%" placeholder="Type your name">
+    <button class="btn btn-main" onclick="const v=$('#nm').value.trim(); if(v){S.name=v;S.sessStart=Date.now();save();go();}">Let's go! 🚀</button>
+    <button class="btn btn-ghost" onclick="renderParentGate()">Parent corner</button></div>`);
+}
+function renderAllDone(){
+  render(`${header(100)}<div class="card center"><div class="emoji-big">🌟</div>
+    <h1>You did it, ${esc(S.name)}!</h1>
+    <p class="big">${S.done[6]?'Every session AND the extra challenge finished … you are officially over-prepared! 🏆':'All sessions are finished.'} You are ready for Tuesday. Sleep well and believe in yourself!</p>
+    ${badgeWall()}
+    <button class="btn btn-soft" onclick="renderMastery(()=>renderAllDone())">See my skill map 🗺️</button>
+    <button class="btn btn-ghost" onclick="enterCode()">🎁 I have a code from Dad</button>
+    <button class="btn btn-ghost" onclick="renderParentGate()">Parent corner</button></div>`);
+}
+function badgeWall(){ if(!S.badges.length) return '';
+  return `<div class="badges">${S.badges.map(k=>`<span class="badge won">${BADGES[k].name}</span>`).join('')}</div>`; }
+
+const SCREENS={
+ w1:()=>({t:`Hi ${esc(S.name)}! 👋`,h:`<p class="big">Welcome to <b>Session 1: Find the gaps</b> 🕵️</p>
+   <p>History Paper 2 is about <b>Mapungubwe</b>, <b>Great Zimbabwe</b>, <b>Marco Polo</b> and the <b>European explorers</b>. First a quick warm up, then a detective mission to see what is already strong.</p>
+   <p class="sub">Apple Pencil ready? Let us go!</p>`,b:'Start warm up ✨'}),
+ prediag:()=>({t:'Detective mission 🔎',h:`<p class="big">14 questions, from both booklets.</p>
+   <p>Do not worry about getting them all right … this is how we find what to practise. Just do your best!</p>`,b:'Start the mission 🕵️'}),
+ reveal:()=>{ checkBadges(); return {t:'Mission complete! 🎉',h:`
+   <p class="big">Here is your skill map, ${esc(S.name)}:</p>${masteryHTML()}
+   <p>The shortest bar is our first <b>power up target</b>. Let us make it strong! 💪</p>`,b:'Power up! ⚡'}; },
+ w2:()=>({t:`Inside Mapungubwe 🦏`,h:`<p class="big"><b>Session 2: Inside Mapungubwe</b></p>
+   <p>Today: the social classes, the sacred king, the famous golden rhino and the gold of Mapungubwe. First, yesterday's fix-its.</p>`,b:'Start 🏔️'}),
+ w3:()=>({t:`Trade & Great Zimbabwe 🐘`,h:`<p class="big"><b>Session 3: Trade & Great Zimbabwe</b></p>
+   <p>Trade across the Indian Ocean, then the great stone city and Marco Polo. First, a quick fix-it round.</p>`,b:"Let us trade 🧭"}),
+ w4:()=>({t:`The Renaissance begins 🎨`,h:`<p class="big"><b>Session 4: The Renaissance begins</b></p>
+   <p>Now we cross to Europe: the "rebirth", the reasons for exploration, and the spice trade. First, yesterday's fix-its.</p>`,b:'Begin 🎨'}),
+ w5:()=>({t:`Great minds & new ideas ⚙️`,h:`<p class="big"><b>Session 5: Great minds & new ideas</b></p>
+   <p>Gunpowder, the compass, the printing press and the caravel; the Reformation; then Leonardo da Vinci and Galileo. First, a fix-it round.</p>`,b:'Bright ideas 💡'}),
+ w6:()=>({t:`Match day, ${esc(S.name)}! 🏆`,h:`<p class="big"><b>Session 6: Explorers & the mock exam</b></p>
+   <p>Dias and da Gama, then your practice exam … just like Tuesday's, but friendlier. First, a warm-up fix-it.</p>`,b:'Warm up first 🔁'}),
+ w7:()=>({t:`Extra Challenge! 🏆⚡`,h:`<p class="big"><b>Bonus: Extra Challenge</b></p>
+   <p>You finished the whole programme, so Dad unlocked the challenge round … the trickiest questions from every topic, plus writing practice. Any new material Dad adds will appear here too.</p>`,b:'Bring it on 💪'}),
+ writeintro:()=>({t:'Writing time! ✍️',h:`<p class="big">Now a longer answer, written with your Pencil … just like the big-mark questions in the exam.</p>
+   <p>Plan your points first, then write. Afterwards you will compare with a model answer and mark yourself honestly.</p>`,b:'Let me write ✍️'}),
+ mockintro:()=>({t:'Practice exam 🏆',h:`<p class="big">Just like the real History Paper 2: both booklets, all question types … <b>35 marks</b>.</p>
+   <p>⏱ You have <b>35 minutes</b> … real exam speed (about a mark a minute). No hints this time. Write full answers with your Pencil. Marks at the end!</p>`,b:'Start the exam ⏱'}),
+ mockresult:()=>{ checkBadges(); const sc=S.mockScore,msg=sc>=28?'Outstanding! You are exam ready! 🏆':sc>=21?'Strong work! A little polish and you are there. 💪':'Good effort! Now we know exactly what to fix. 🔧';
+   return {t:`Your mock result: ${sc} / ${S.mockTotal}`,h:`<div class="emoji-big center">${sc>=28?'🏆':sc>=21?'🌟':'💪'}</div>
+   <p class="big center">${msg}</p><p>Let us look at anything that slipped and make it right.</p>`,b:'Fix my slips 🔍'}; },
+ confintro:()=>({t:'Victory lap! 🎉',h:`<p class="big">Last round: questions you are great at.</p>
+   <p>Finish strong and walk into Tuesday with a smile.</p>`,b:'Victory lap 🏁'}),
+ submit:()=>({t:'',h:'',b:''})};
+function renderScreen(id){
+  if(id==='submit'){ renderSubmit(); return; }
+  const sc=SCREENS[id]();
+  const extra=(/^w\d+$/.test(id))?
+    `<button class="btn btn-ghost" onclick="enterCode()">🎁 I have a code from Dad</button>
+     <button class="btn btn-ghost" onclick="renderParentGate()">Parent corner</button>`:'';
+  render(`${header(sessionPct())}<div class="card">${sc.t?`<h1>${sc.t}</h1>`:''}${sc.h}
+    <button class="btn btn-main" onclick="nextStep()">${sc.b}</button>${extra}</div>`);
+}
+function masteryHTML(){
+  return `<div class="mastery">${Object.keys(SKILLS).map(s=>{
+    const m=S.mastery[s],c=m>=70?'#1fa552':m>=45?'#f2a51a':'#e0485a';
+    return `<div class="skill-tile"><b>${SKILLS[s].emoji} ${SKILLS[s].name}</b>
+      <div class="meter"><div style="width:${m}%;background:${c}"></div></div></div>`;}).join('')}</div>`; }
+function renderMastery(back){
+  render(`${header(sessionPct())}<div class="card"><h2>My skill map 🗺️</h2>${masteryHTML()}${badgeWall()}
+    <button class="btn btn-main" id="backbtn">Back</button></div>`);
+  $('#backbtn').onclick=back; }
+function renderLesson(st){
+  const skill=st.skill||weakOrder()[st.weak];
+  S['lessonSkill'+(st.weak!=null?st.weak:skill)]=skill; save();
+  const L=LESSONS[skill];
+  render(`${header(sessionPct())}<div class="card">
+    <h2>${SKILLS[skill].emoji} Power up: ${L.title}</h2>${L.html}
+    <p class="sub">Read it slowly … then let's try some together!</p>
+    <button class="btn btn-main" onclick="nextStep()">I'm ready ✏️</button></div>`);
+}
+
+/* ============ quiz engine ============ */
+let T0=0, hintsUsed=0, attemptNo=1, selVal=null, drawRevealed=false;
+function startQuiz(st){
+  if(!S.cur){
+    let items;
+    if(st.make) items=st.make();
+    else if(st.mode==='retry'){
+      const q=S.retryQueue.splice(0,6);
+      items=q.length?q.map(r=>makeItem(r.type)):pickPracticeItems(3);
+    }
+    else if(st.mode==='corrections'){
+      const wrong=S.log.filter(a=>a.mode==='mock'&&!a.correct);
+      items=wrong.length?wrong.slice(0,8).map(a=>makeItem(a.type)):confidenceItems(3);
+    }
+    else if(st.mode==='confidence') items=confidenceItems(st.n||5);
+    else if(st.weak!=null){ const skill=S['lessonSkill'+st.weak]||weakOrder()[st.weak];
+      items=[];for(let i=0;i<(st.n||4);i++)items.push(makeFromSkill(skill,null,false)); }
+    else items=pickPracticeItems(st.n||6);
+    S.cur={mode:st.mode,items:items,started:Date.now()};
+    if(st.mode==='mock'){S.cur.deadline=Date.now()+35*60*1000;}
+    S.qi=0; save();
+  }
+  renderQuestion();
+}
+function curItem(){ return S.cur.items[S.qi]; }
+function choiceBtn(c,i){
+  const raw=String(c).startsWith('<svg');
+  return `<button class="choice" data-i="${i}" onclick="selChoice(this)">${raw?c:esc(c)}</button>`; }
+function renderQuestion(){
+  const it=curItem();
+  if(!it){ finishQuiz(); return; }
+  T0=Date.now(); hintsUsed=0; attemptNo=1; selVal=null; drawRevealed=false;
+  const mode=S.cur.mode, n=S.cur.items.length;
+  const label={warm:'Warm up',diag:'Detective mission',practice:'Practice',trap:'Trap Spotter',
+    mock:'PRACTICE EXAM',retry:'Fix it',corrections:'Fix my slips',confidence:'Victory lap'}[mode]||'Practice';
+  let inputHtml='';
+  if(it.input==='text') inputHtml=`<div class="answer-row"><label>Answer:</label>
+      <input class="ans" id="ansIn" autocomplete="off" autocapitalize="off" placeholder="${it.placeholder||'write here with your Pencil'}"></div>`;
+  else if(it.input==='compare') inputHtml=`<div class="choices row">
+      <button class="choice" data-i="-1" data-v=">" onclick="selChoice(this)">&gt;</button>
+      <button class="choice" data-i="-1" data-v="<" onclick="selChoice(this)">&lt;</button>
+      <button class="choice" data-i="-1" data-v="=" onclick="selChoice(this)">=</button></div>`;
+  else if(it.input==='choice') inputHtml=`<div class="choices">${it.choices.map((c,i)=>choiceBtn(c,i)).join('')}</div>`;
+  const marksNote=(mode==='mock')?` · ${it.marks} mark${it.marks>1?'s':''}`:'';
+  render(`${header(sessionPct())}
+   <div class="card">
+    <p class="sub">${label} · Question ${S.qi+1} of ${n}${marksNote}${mode==='mock'?` · <span id="clock" class="timer" style="font-size:18px;display:inline"></span>`:''}</p>
+    <div class="qtext">${it.prompt}</div>
+    <div class="canvas-wrap"><span class="canvas-label">✏️ ${it.input==='draw'?'Draw here':'Show your working here'}</span><canvas class="work" id="cv" ${it.input==='draw'?'style="height:300px"':''}></canvas></div>
+    <div class="tools">
+      <button class="tool on" id="penB" onclick="setTool('pen')">✏️ Pen</button>
+      <button class="tool" id="erB" onclick="setTool('eraser')">🧽 Eraser</button>
+      <button class="tool" onclick="undoStroke()">↩️ Undo</button>
+      <button class="tool" onclick="clearCanvas()">🗑 Clear</button></div>
+    ${inputHtml}
+    <div id="fb"></div>
+    <button class="btn btn-teal" id="checkBtn" onclick="doCheck()">${it.input==='draw'?"I'm done ✏️":'Check ✓'}</button>
+   </div>`);
+  initCanvas();
+  if(mode==='mock') tickClock();
+  const ai=$('#ansIn'); if(ai){ai.addEventListener('keydown',e=>{if(e.key==='Enter')doCheck();});}
+}
+function selChoice(btn){
+  const i=+btn.getAttribute('data-i');
+  selVal=i>=0?String(curItem().choices[i]):btn.getAttribute('data-v');
+  document.querySelectorAll('.choice').forEach(b=>b.classList.remove('sel')); btn.classList.add('sel'); }
+function tickClock(){
+  const el=$('#clock'); if(!el||!S.cur||!S.cur.deadline) return;
+  const left=Math.max(0,S.cur.deadline-Date.now());
+  const m=Math.floor(left/60000),s=Math.floor(left%60000/1000);
+  el.textContent=`⏱ ${m}:${String(s).padStart(2,'0')}`;
+  if(left<5*60*1000) el.classList.add('low');
+  if(left<=0){ finishQuiz(); return; }
+  setTimeout(tickClock,1000);
+}
+function getUserAnswer(){ const it=curItem();
+  if(it.input==='text'){ const el=$('#ansIn'); return el?el.value:''; }
+  return selVal; }
+function selfMark(ok){
+  const it=curItem();
+  recordAttempt(it,'(drawing)',ok,true);
+  S.log[S.log.length-1].selfMarked=true;
+  if(ok){S.streak++;S.best=Math.max(S.best,S.streak);S.stars++;}else{S.streak=0;S.retryQueue.push({type:it.type,reason:'auto'});}
+  const won=checkBadges();
+  showFB(ok?'good':'hint',ok?`Beautiful drawing! 🌟${won.length?'<br>🏅 New badge: <b>'+won.join(', ')+'</b>!':''}`:
+    'Good try! We\'ll practise one like this again. 💪');
+  disableCheck();
+  setTimeout(()=>{ if(!S.cur) return; S.qi++;save();renderQuestion(); },1200);
+}
+function doCheck(){
+  const it=curItem();
+  if(it.input==='draw'){
+    if(!drawRevealed){ drawRevealed=true;
+      if(!canvasDirty()){ showFB('hint','✏️ Draw it first with your Pencil … you can do it!'); drawRevealed=false; return; }
+      $('#fb').innerHTML=`<div class="sol"><b>💡 Here is a model answer:</b><br>${it.model}<br>${it.sol}<br>
+        <b>Compare with yours … be honest!</b></div>
+        <button class="btn btn-teal" onclick="selfMark(true)">Mine matches ✓</button>
+        <button class="btn btn-soft" onclick="selfMark(false)">Not quite yet</button>`;
+      $('#checkBtn').style.display='none';
+      return; }
+    return; }
+  const user=getUserAnswer();
+  if(user==null||String(user).trim()===''){ showFB('hint','✏️ Write your answer first … you can do it!'); return; }
+  const ok=checkAnswer(it,user);
+  const mode=S.cur.mode;
+  if(mode==='diag'||mode==='mock'){ recordAttempt(it,user,ok,true);
+    showFB('good',mode==='diag'?'Answer locked in! 🔒':'Saved ✓ … next one!');
+    disableCheck(); setTimeout(()=>{ if(!S.cur) return; S.qi++;save();renderQuestion(); },700); return; }
+  if(ok){
+    const first=(attemptNo===1);
+    recordAttempt(it,user,true,first);
+    if(first&&!hintsUsed){S.streak++;S.best=Math.max(S.best,S.streak);S.stars++;}
+    else S.streak=0;
+    const won=checkBadges();
+    const cheers=['Brilliant! 🌟','Yes! Nailed it! 🎯','Superstar! ⭐','You got it! 🙌','Perfect! 💯','Sharp thinking! 🧠'];
+    showFB('good',`${pick(cheers)}${won.length?'<br>🏅 New badge: <b>'+won.join(', ')+'</b>!':''}`);
+    disableCheck();
+    setTimeout(()=>{ if(!S.cur) return; S.qi++;save();renderQuestion(); },1100);
+  } else {
+    if(attemptNo===1){ attemptNo=2; hintsUsed++;
+      showFB('hint',`🤔 Not quite … here's a hint:<br><b>${it.hints[0]}</b><br><span class="small">Fix your working and try again!</span>`);
+    } else {
+      recordAttempt(it,user,false,false); S.streak=0;
+      S.retryQueue.push({type:it.type,reason:'auto'});
+      showFB('bad',`Almost! The answer is <b>${String(it.ans).startsWith('<svg')?it.ans:esc(it.ans)}</b>.`);
+      $('#fb').insertAdjacentHTML('beforeend',`<div class="sol"><b>💡 How it works:</b><br>${it.sol}</div>
+        <button class="btn btn-main" onclick="S.qi++;save();renderQuestion()">Got it, next! →</button>`);
+      disableCheck();
+    }
+  }
+}
+function disableCheck(){ const b=$('#checkBtn'); if(b)b.disabled=true; }
+function showFB(kind,msg){ $('#fb').innerHTML=`<div class="feedback fb-${kind}">${msg}</div>`; }
+function recordAttempt(it,user,correct,firstTry){
+  const png=canvasDirty()?exportCanvas():null;
+  updateMastery(it.skill,firstTry,correct,hintsUsed);
+  S.log.push({id:it.id,type:it.type,skill:it.skill,mode:S.cur.mode,session:S.session,
+    prompt:it.prompt,ans:it.ans,user:String(user),correct,firstTry,hints:hintsUsed,
+    marks:correct?it.marks:0,maxMarks:it.marks,timeS:Math.round((Date.now()-T0)/1000),
+    png,ts:Date.now()});
+  save();
+}
+function finishQuiz(){
+  const mode=S.cur?S.cur.mode:null;
+  if(mode==='mock'){ S.mockScore=Math.min(S.mockTotal,
+    S.log.filter(a=>a.mode==='mock'&&a.correct).reduce((t,a)=>t+a.maxMarks,0)); }
+  S.cur=null;
+  const mid=Math.floor(SESSIONS[S.session].steps.length/2);
+  if(!S.stretch[S.session]&&S.step===mid){
+    S.stretch[S.session]=true; S.step++; save();
+    render(`${header(sessionPct())}<div class="card center"><div class="emoji-big">🤸</div>
+      <h2>Quick stretch?</h2><p class="big">You're doing great! Stand up, shake your arms, take three deep breaths … then come back.</p>
+      <button class="btn btn-main" onclick="go()">I'm back! 💪</button>
+      <button class="btn btn-ghost" onclick="go()">Skip … I'm on a roll 🔥</button></div>`);
+    return; }
+  nextStep();
+}
+</script>
+<script>
+"use strict";
+/* ============ Apple Pencil canvas ============ */
+let cv=null,cctx=null,strokes=[],curStroke=null,tool='pen';
+function initCanvas(){
+  cv=$('#cv'); if(!cv) return;
+  const w=cv.clientWidth||700,h=240,dpr=Math.min(2,window.devicePixelRatio||1);
+  cv.width=w*dpr; cv.height=h*dpr;
+  cctx=cv.getContext('2d'); cctx.scale(dpr,dpr);
+  cv._w=w; cv._h=h; strokes=[]; tool='pen'; redraw();
+  cv.addEventListener('pointerdown',penDown,{passive:false});
+  cv.addEventListener('pointermove',penMove,{passive:false});
+  cv.addEventListener('pointerup',penUp); cv.addEventListener('pointercancel',penUp);
+}
+function pos(e){ const r=cv.getBoundingClientRect(); return [e.clientX-r.left,e.clientY-r.top]; }
+function penDown(e){ e.preventDefault(); cv.setPointerCapture(e.pointerId);
+  curStroke={tool,pts:[pos(e)],w:tool==='pen'?(e.pointerType==='pen'?2.2:2.6):22}; strokes.push(curStroke); redraw(); }
+function penMove(e){ if(!curStroke) return; e.preventDefault();
+  const evs=e.getCoalescedEvents?e.getCoalescedEvents():[e];
+  for(const ev of evs) curStroke.pts.push(pos(ev)); redraw(); }
+function penUp(){ curStroke=null; }
+function setTool(t){ tool=t; $('#penB').classList.toggle('on',t==='pen'); $('#erB').classList.toggle('on',t==='eraser'); }
+function undoStroke(){ strokes.pop(); redraw(); }
+function clearCanvas(){ strokes=[]; redraw(); }
+function redraw(){ if(!cctx) return;
+  cctx.fillStyle='#fff'; cctx.fillRect(0,0,cv._w,cv._h);
+  cctx.strokeStyle='#eef0f6'; cctx.lineWidth=1;
+  for(let y=30;y<cv._h;y+=30){cctx.beginPath();cctx.moveTo(0,y);cctx.lineTo(cv._w,y);cctx.stroke();}
+  for(const s of strokes){ cctx.strokeStyle=s.tool==='pen'?'#1c2440':'#ffffff';
+    cctx.lineWidth=s.w; cctx.lineCap='round'; cctx.lineJoin='round';
+    cctx.beginPath(); const p=s.pts; cctx.moveTo(p[0][0],p[0][1]);
+    for(let i=1;i<p.length;i++)cctx.lineTo(p[i][0],p[i][1]); cctx.stroke(); }
+}
+function canvasDirty(){ return strokes.some(s=>s.tool==='pen'); }
+function exportCanvas(){
+  const W=620,H=Math.round(240*(620/(cv._w||620)))||240;
+  const off=document.createElement('canvas'); off.width=W; off.height=240;
+  const c=off.getContext('2d'); const sx=W/(cv._w||W);
+  c.fillStyle='#fff'; c.fillRect(0,0,W,240);
+  for(const s of strokes){ c.strokeStyle=s.tool==='pen'?'#1c2440':'#ffffff';
+    c.lineWidth=s.w*sx; c.lineCap='round'; c.lineJoin='round';
+    c.beginPath(); const p=s.pts; c.moveTo(p[0][0]*sx,p[0][1]*sx);
+    for(let i=1;i<p.length;i++)c.lineTo(p[i][0]*sx,p[i][1]*sx); c.stroke(); }
+  return off.toDataURL('image/jpeg',0.55);
+}
+
+/* ============ submit ============ */
+function sessionAttempts(n){ return S.log.filter(a=>a.session===n); }
+function summaryText(n){
+  const at=sessionAttempts(n); const ok=at.filter(a=>a.correct).length;
+  const w=weakOrder();
+  let t=`Explorer Dash (History P2) — ${S.name}, Session ${n+1} done! ✅ ${ok}/${at.length} correct`;
+  if(n===5&&S.mockScore!=null)t+=` · Mock exam: ${S.mockScore}/${S.mockTotal}`;
+  t+=`. Strongest: ${SKILLS[w[w.length-1]].name}. Working on: ${SKILLS[w[0]].name}.`;
+  return t; }
+function buildPackage(n){
+  return JSON.stringify({app:'ExplorerDashH2',version:1,learner:S.name,session:n+1,
+    date:new Date().toISOString(),mastery:S.mastery,mockScore:S.mockScore,
+    badges:S.badges.map(k=>BADGES[k].name),bestStreak:S.best,stars:S.stars,
+    retryQueue:S.retryQueue,attempts:sessionAttempts(n)}); }
+function renderSubmit(){
+  const n=S.session; const at=sessionAttempts(n); const ok=at.filter(a=>a.correct).length;
+  const final=(n===SESSIONS.length-1); const won=checkBadges();
+  render(`${header(96)}<div class="card center">
+    <div class="emoji-big">${final?'🏆':'🎉'}</div>
+    <h1>Session ${n+1} finished!</h1>
+    <p class="big">You answered <b>${ok} of ${at.length}</b> correctly${n===5&&S.mockScore!=null?` and scored <b>${S.mockScore}/${S.mockTotal}</b> in your practice exam`:''}. ${ok/Math.max(1,at.length)>=0.75?'Amazing work! 🌟':'Great effort! 💪'}</p>
+    ${won.length?`<div class="badges">${won.map(b=>`<span class="badge won">${b}</span>`).join('')}</div>`:''}
+    <p class="sub">Now send your work to Dad with one tap:</p>
+    <button class="btn btn-main" onclick="doSubmit(${n})">📤 Submit my work</button>
+    <div id="afterSubmit"></div></div>`);
+}
+function doSubmit(n){
+  const blob=new Blob([buildPackage(n)],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=`ExplorerDash_H2_Session${n+1}_${new Date().toISOString().slice(0,10)}.json`;
+  document.body.appendChild(a); a.click(); a.remove();
+  const txt=encodeURIComponent(summaryText(n));
+  $('#afterSubmit').innerHTML=`
+    <div class="feedback fb-good">Your work has been saved and sent to your iCloud folder ✓</div>
+    <a class="btn btn-teal linkbtn" href="sms:&body=${txt}">💬 Tell Dad on iMessage</a>
+    <button class="btn btn-main" onclick="closeSession(${n})">${(n===5||n===6)?'Finish! 🌟':'Done for now! 👋'}</button>`;
+}
+function closeSession(n){
+  S.done[n]=true; checkBadges(); S.session=n+1; S.step=0; S.cur=null; S.qi=0; save(); go();
+}
+
+/* ============ retry code from Dad ============ */
+function enterCode(){
+  const c=prompt('Type the code Dad sent you:')||'';
+  const m=c.trim().match(/^DD-([a-zA-Z0-9.]+)$/);
+  if(!m){ alert('Hmm, that code doesn\'t look right. Ask Dad to check it!'); return; }
+  const types=m[1].split('.').filter(t=>TYPES[t]);
+  types.forEach(t=>S.retryQueue.push({type:t,reason:'parent'})); save();
+  alert('Got it! '+types.length+' special questions from Dad added to your next Fix-it round. 🎁');
+}
+
+/* ============ parent corner ============ */
+function renderParentGate(){
+  if(!S.pin){
+    render(`${header(0)}<div class="card"><h2>Parent corner … first visit</h2>
+      <p>Create a 4 digit PIN so this area stays yours.</p>
+      <input class="ans" id="p1" type="tel" maxlength="4" placeholder="Choose PIN">
+      <input class="ans" id="p2" type="tel" maxlength="4" placeholder="Repeat PIN" style="margin-top:8px">
+      <button class="btn btn-main" onclick="const a=$('#p1').value,b=$('#p2').value;
+        if(a.length===4&&a===b){S.pin=a;save();renderParent('over');}else alert('PINs must match and be 4 digits.')">Save PIN</button>
+      <button class="btn btn-ghost" onclick="go()">Back</button></div>`);
+    return; }
+  render(`${header(0)}<div class="card"><h2>Parent corner</h2>
+    <input class="ans" id="pin" type="tel" maxlength="4" placeholder="Enter PIN">
+    <button class="btn btn-main" onclick="if($('#pin').value===S.pin)renderParent('over');else alert('Wrong PIN')">Open</button>
+    <button class="btn btn-ghost" onclick="go()">Back</button></div>`);
+}
+function pTabs(cur){
+  const t=[['over','Overview'],['q','Questions'],['io','Import / Export'],['set','Settings']];
+  return `<div class="rowflex" style="margin-bottom:10px">${t.map(x=>
+    `<button class="tool ${x[0]===cur?'on':''}" onclick="renderParent('${x[0]}')">${x[1]}</button>`).join('')}
+    <button class="tool" onclick="go()">← Exit</button></div>`;
+}
+function estBand(){
+  if(S.mockScore!=null){ if(S.mockScore>=28)return '56–70 (strong)'; if(S.mockScore>=21)return '42–56 (on track)'; return '28–42 (needs targeted fixes)'; }
+  const vals=Object.values(S.mastery); const avg=vals.reduce((a,b)=>a+b,0)/vals.length;
+  return avg>=75?'56–70 of 70 (projected)':avg>=55?'42–56 of 70 (projected)':'28–45 of 70 (projected)'; }
+function renderParent(tab){
+  let body='';
+  if(tab==='over'){
+    const at=S.log; const ok=at.filter(a=>a.correct).length;
+    const w=weakOrder();
+    body=`<h2>Overview</h2>
+     <p><b>${esc(S.name)||'Learner'}</b> · Sessions done: <b>${S.done.filter(Boolean).length}/6</b> ·
+        Questions: <b>${at.length}</b> (${ok} correct) · Best streak: <b>${S.best}</b>
+        ${S.mockScore!=null?` · Mock: <b>${S.mockScore}/${S.mockTotal}</b>`:''}</p>
+     <p><b>Predicted exam band (out of 70): ${estBand()}</b></p>
+     ${masteryHTML()}
+     <p class="small"><b>Focus next:</b> ${w.slice(0,2).map(s=>SKILLS[s].name).join(' · ')}</p>
+     <p class="small"><b>Session summary for iMessage / Claude:</b></p>
+     <textarea class="note" readonly>${esc(summaryText(Math.max(0,S.session-1)))}</textarea>
+     <p class="small">For AI deep marking: send the downloaded session file from your iCloud folder to Claude together with the marking prompt (see the AI Marking Prompt in your History/Paper 2 folder).</p>`;
+  }
+  else if(tab==='q'){
+    const at=S.log.slice(-120).reverse();
+    body=`<h2>Every question</h2><p class="small">Tap a row to review handwriting, override the mark, comment, or assign a similar question. ✎ = handwriting captured.</p>
+     <table class="dash"><tr><th>S·Mode</th><th>Skill</th><th>Her answer</th><th>Mark</th></tr>
+     ${at.map((a,i)=>{const ov=S.overrides[a.id];const ok=ov!=null?ov:a.correct;
+       return `<tr onclick="renderPDetail(${S.log.indexOf(a)})" style="cursor:pointer">
+        <td>${a.session+1}·${a.mode}</td><td>${SKILLS[a.skill].emoji} ${a.type}${a.png?' ✎':''}</td>
+        <td>${esc(String(a.user).slice(0,14))}</td>
+        <td><span class="pill ${ok?'g':'b'}">${ok?'✓':'✗'}${ov!=null?' *':''}</span></td></tr>`;}).join('')}</table>
+     <p class="small">* = overridden by you</p>
+     <h3>Assign extra practice</h3><p class="small">Send her a code by iMessage. She taps "🎁 code from Dad" and types it in.</p>
+     <div class="rowflex">${Object.keys(SKILLS).map(s=>
+       `<button class="tool" onclick="makeCode('${s}')">${SKILLS[s].emoji} ${SKILLS[s].name}</button>`).join('')}</div>
+     <div id="codeOut"></div>`;
+  }
+  else if(tab==='io'){
+    body=`<h2>Import / Export</h2>
+     <p class="small"><b>Import</b> a session file from the iCloud folder (when reviewing on your own iPad):</p>
+     <input type="file" id="impF" accept=".json">
+     <button class="btn btn-soft" onclick="importFile()">Import session file</button>
+     <p class="small" style="margin-top:14px"><b>Export</b> everything (full backup, also useful to send to Claude):</p>
+     <button class="btn btn-soft" onclick="exportAll()">Download full backup</button>
+     <div id="ioMsg"></div>`;
+  }
+  else{
+    body=`<h2>Settings</h2>
+     <p class="small">Learner name</p><input class="ans" id="setName" value="${esc(S.name)}">
+     <p class="small">Change PIN</p><input class="ans" id="setPin" type="tel" maxlength="4" placeholder="New 4 digit PIN">
+     <button class="btn btn-soft" onclick="const n=$('#setName').value.trim();if(n)S.name=n;
+       const p=$('#setPin').value; if(p.length===4)S.pin=p; save(); alert('Saved.')">Save</button>
+      <button class="btn btn-ghost" onclick="if(confirm('Reset EVERYTHING? All progress will be lost.')){localStorage.removeItem('histp2');location.reload();}">⚠️ Reset the whole app</button>`;
+  }
+  render(`${header(0)}<div class="card">${pTabs(tab)}${body}</div>`);
+}
+function renderPDetail(i){
+  const a=S.log[i]; if(!a){renderParent('q');return;}
+  const ov=S.overrides[a.id]; const ok=ov!=null?ov:a.correct;
+  render(`${header(0)}<div class="card">${pTabs('q')}
+   <h2>Question review</h2>
+   <p class="small">Session ${a.session+1} · ${a.mode} · ${SKILLS[a.skill].name} · ${a.timeS}s · hints used: ${a.hints} · source: ${TYPES[a.type]?'':''}${esc(a.type)}</p>
+   <div class="qtext" style="font-size:18px">${a.prompt}</div>
+   <p><b>Her answer:</b> ${esc(a.user)} &nbsp; <b>Expected:</b> ${esc(String(a.ans))} &nbsp;
+      <span class="pill ${ok?'g':'b'}">${ok?'correct':'incorrect'}${ov!=null?' (overridden)':''}</span></p>
+   ${a.png?`<p class="small">Her handwritten working:</p><img class="hw" src="${a.png}">`:'<p class="small">No handwriting captured for this one.</p>'}
+   <div class="rowflex" style="margin-top:10px">
+     <button class="tool" onclick="S.overrides['${a.id}']=true;save();renderPDetail(${i})">Override: correct ✓</button>
+     <button class="tool" onclick="S.overrides['${a.id}']=false;save();renderPDetail(${i})">Override: incorrect ✗</button>
+     <button class="tool" onclick="delete S.overrides['${a.id}'];save();renderPDetail(${i})">Clear override</button>
+     <button class="tool" onclick="S.retryQueue.push({type:'${a.type}',reason:'parent'});save();alert('A similar question was added to her next Fix-it round.')">Assign similar ↻</button></div>
+   <p class="small" style="margin-top:10px">Comment (she'll see this if you review together; also included in exports):</p>
+   <textarea class="note" id="cmt">${esc(S.comments[a.id]||'')}</textarea>
+   <button class="btn btn-soft" onclick="S.comments['${a.id}']=$('#cmt').value;save();alert('Comment saved.')">Save comment</button>
+  </div>`);
+}
+function makeCode(skill){
+  const ts=shuffle(SKILL_TYPES[skill].slice()).slice(0,3);
+  $('#codeOut').innerHTML=`<div class="feedback fb-good">Send her this code: <b>DD-${ts.join('.')}</b><br>
+    <a class="btn btn-teal linkbtn" style="margin-top:8px" href="sms:&body=${encodeURIComponent('Here is a bonus round for you! 🎁 Open Shape Dash, tap "code from Dad" and type: DD-'+ts.join('.'))}">Send by iMessage</a></div>`;
+}
+function importFile(){
+  const f=$('#impF').files[0]; if(!f){alert('Choose a file first.');return;}
+  const r=new FileReader();
+  r.onload=()=>{ try{
+    const p=JSON.parse(r.result);
+    if(p.app!=='ExplorerDashH2')throw 0;
+    const have=new Set(S.log.map(a=>a.id)); let n=0;
+    for(const a of (p.attempts||[])){ if(!have.has(a.id)){S.log.push(a);n++;} }
+    if(p.mastery)S.mastery=p.mastery;
+    if(p.mockScore!=null)S.mockScore=p.mockScore;
+    if(p.learner&&!S.name)S.name=p.learner;
+    save(); $('#ioMsg').innerHTML=`<div class="feedback fb-good">Imported ${n} new answers from ${esc(p.learner||'learner')}, session ${p.session}.</div>`;
+   }catch(e){ $('#ioMsg').innerHTML=`<div class="feedback fb-bad">That file doesn't look like a Shape Dash session.</div>`; } };
+  r.readAsText(f);
+}
+function exportAll(){
+  const blob=new Blob([JSON.stringify(S)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download=`ExplorerDash_H2_FullBackup_${new Date().toISOString().slice(0,10)}.json`;
+  document.body.appendChild(a); a.click(); a.remove();
+  $('#ioMsg').innerHTML=`<div class="feedback fb-good">Backup downloaded to your iCloud folder ✓</div>`;
+}
+
+/* ============ boot ============ */
+go();
+</script>
+</body>
+</html>

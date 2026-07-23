@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Zimmy's Study Hub</title>
+<style>
+:root{--purple:#6c4ce0;--purple-d:#54389f;--teal:#12b5a5;--bg:#f4f2fc;--card:#fff;--ink:#2b2350;--sub:#6f6a8a;--line:#e6e2f5;--good:#1fa552;}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);font-family:-apple-system,'SF Pro Rounded',BlinkMacSystemFont,'Segoe UI',sans-serif;-webkit-text-size-adjust:100%;}
+.wrap{max-width:760px;margin:0 auto;padding:22px 18px 40px;}
+.top{display:flex;align-items:center;gap:12px;margin:8px 2px 18px;}
+.logo{font-size:34px;}
+h1{font-size:26px;margin:0;letter-spacing:.2px;}
+h1 span{color:var(--teal);}
+.tag{color:var(--sub);font-size:15px;margin:2px 2px 22px;}
+.subject{font-weight:800;font-size:14px;text-transform:uppercase;letter-spacing:.8px;color:var(--purple-d);margin:22px 6px 10px;display:flex;align-items:center;gap:8px;}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+@media(max-width:520px){.grid{grid-template-columns:1fr;}}
+.tile{display:block;text-decoration:none;color:var(--ink);background:var(--card);border-radius:20px;padding:18px;box-shadow:0 3px 14px rgba(80,60,160,.08);border:2px solid transparent;transition:transform .1s,border-color .2s;}
+.tile:active{transform:scale(.985);}
+.tile.live:hover{border-color:var(--purple);}
+.tile .emoji{font-size:34px;}
+.tile .app{font-weight:800;font-size:20px;margin:8px 0 2px;}
+.tile .meta{color:var(--sub);font-size:14px;}
+.pill{display:inline-block;font-size:12px;font-weight:700;border-radius:999px;padding:3px 10px;margin-top:10px;}
+.pill.ready{background:#e9f9f0;color:var(--good);}
+.pill.exam{background:#fbeef0;color:#c23a4b;}
+.soon{opacity:.55;filter:grayscale(.3);}
+.soon .pill{background:#eee;color:#888;}
+.foot{color:var(--sub);font-size:13px;text-align:center;margin-top:30px;line-height:1.6;}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--teal);display:inline-block;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top"><div class="logo">🎒</div><h1>Zimmy's <span>Study Hub</span></h1></div>
+  <div class="tag">Tap a card to start. Everything stays here for year-end revision.</div>
+  <div id="board"></div>
+  <div class="foot">Tip: add this page to your Home Screen for one-tap access to every subject.<br>Made with ❤️ by Dad.</div>
+</div>
+<script>
+// Add a new subject/assessment here and it appears automatically.
+const APPS=[
+ {subject:'Mathematics', emoji:'🔟', items:[
+   {app:'Decimal Dash', assessment:'Paper 1 · Decimals', url:'../', status:'ready', note:'Done'},
+   {app:'Shape Dash', assessment:'Paper 2 · Shapes, measuring & data', url:'../paper2/', status:'ready', note:'Done'}
+ ]},
+ {subject:'History', emoji:'📜', items:[
+   {app:'Explorer Dash', assessment:'Paper 2 · Mapungubwe & Exploration', url:'../history-p2/', status:'exam', note:'Exam Tue 28 Jul'}
+ ]}
+];
+const board=document.getElementById('board');
+APPS.forEach(group=>{
+  const h=document.createElement('div'); h.className='subject';
+  h.innerHTML='<span>'+group.emoji+'</span> '+group.subject;
+  board.appendChild(h);
+  const grid=document.createElement('div'); grid.className='grid';
+  group.items.forEach(it=>{
+    const live=it.status!=='soon';
+    const el=document.createElement(live?'a':'div');
+    el.className='tile '+(live?'live':'soon');
+    if(live){ el.href=it.url; }
+    const pill=it.status==='exam'?'<span class="pill exam">🎯 '+it.note+'</span>'
+             :it.status==='ready'?'<span class="pill ready">✓ '+it.note+'</span>'
+             :'<span class="pill">'+ (it.note||'Coming soon') +'</span>';
+    el.innerHTML='<div class="emoji">'+({'Decimal Dash':'🔢','Shape Dash':'🔷','Explorer Dash':'🧭'}[it.app]||'📘')+'</div>'
+      +'<div class="app">'+it.app+'</div><div class="meta">'+it.assessment+'</div>'+pill;
+    grid.appendChild(el);
+  });
+  board.appendChild(grid);
+});
+</script>
+</body>
+</html>
