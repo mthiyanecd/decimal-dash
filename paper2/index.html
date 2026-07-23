@@ -1648,7 +1648,7 @@ function selfMark(ok){
   showFB(ok?'good':'hint',ok?`Beautiful drawing! 🌟${won.length?'<br>🏅 New badge: <b>'+won.join(', ')+'</b>!':''}`:
     'Good try! We\'ll practise one like this again. 💪');
   disableCheck();
-  setTimeout(()=>{S.qi++;save();renderQuestion();},1200);
+  setTimeout(()=>{ if(!S.cur) return; S.qi++;save();renderQuestion(); },1200);
 }
 function doCheck(){
   const it=curItem();
@@ -1668,7 +1668,7 @@ function doCheck(){
   const mode=S.cur.mode;
   if(mode==='diag'||mode==='mock'){ recordAttempt(it,user,ok,true);
     showFB('good',mode==='diag'?'Answer locked in! 🔒':'Saved ✓ … next one!');
-    disableCheck(); setTimeout(()=>{S.qi++;save();renderQuestion();},700); return; }
+    disableCheck(); setTimeout(()=>{ if(!S.cur) return; S.qi++;save();renderQuestion(); },700); return; }
   if(ok){
     const first=(attemptNo===1);
     recordAttempt(it,user,true,first);
@@ -1678,7 +1678,7 @@ function doCheck(){
     const cheers=['Brilliant! 🌟','Yes! Nailed it! 🎯','Superstar! ⭐','You got it! 🙌','Perfect! 💯','Sharp thinking! 🧠'];
     showFB('good',`${pick(cheers)}${won.length?'<br>🏅 New badge: <b>'+won.join(', ')+'</b>!':''}`);
     disableCheck();
-    setTimeout(()=>{S.qi++;save();renderQuestion();},1100);
+    setTimeout(()=>{ if(!S.cur) return; S.qi++;save();renderQuestion(); },1100);
   } else {
     if(attemptNo===1){ attemptNo=2; hintsUsed++;
       showFB('hint',`🤔 Not quite … here's a hint:<br><b>${it.hints[0]}</b><br><span class="small">Fix your working and try again!</span>`);
@@ -1889,7 +1889,7 @@ function renderParent(tab){
      <p class="small">Change PIN</p><input class="ans" id="setPin" type="tel" maxlength="4" placeholder="New 4 digit PIN">
      <button class="btn btn-soft" onclick="const n=$('#setName').value.trim();if(n)S.name=n;
        const p=$('#setPin').value; if(p.length===4)S.pin=p; save(); alert('Saved.')">Save</button>
-     <button class="btn btn-ghost" onclick="if(confirm('Reset EVERYTHING? All progress will be lost.')){localStorage.removeItem('dd1');location.reload();}">⚠️ Reset the whole app</button>`;
+      <button class="btn btn-ghost" onclick="if(confirm('Reset EVERYTHING? All progress will be lost.')){localStorage.removeItem('ddp2');location.reload();}">⚠️ Reset the whole app</button>`;
   }
   render(`${header(0)}<div class="card">${pTabs(tab)}${body}</div>`);
 }

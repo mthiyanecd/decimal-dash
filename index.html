@@ -50,7 +50,7 @@ p{line-height:1.5;} .sub{color:var(--sub);font-size:15px;}
 .answer-row{display:flex;align-items:center;gap:10px;margin:8px 0;}
 .answer-row label{font-size:18px;font-weight:700;}
 input.ans{flex:1;border:2px solid var(--line);border-radius:14px;padding:14px;font-size:24px;font-family:inherit;
-  min-width:120px;background:#fff;color:var(--ink);}
+  min-width:120px;background:#fff;color:var(--ink);-webkit-appearance:none;appearance:none;}
 input.ans:focus{outline:none;border-color:var(--teal);}
 .canvas-wrap{border:2px dashed #cfc8ee;border-radius:16px;background:#fff;position:relative;margin:12px 0 4px;}
 .canvas-label{position:absolute;top:8px;left:12px;color:#b9b2d8;font-size:14px;font-weight:600;pointer-events:none;}
@@ -958,7 +958,9 @@ function renderQuestion(){
     mock:'PRACTICE EXAM',retry:'Fix it',corrections:'Fix my slips',confidence:'Victory lap'}[mode]||'Practice';
   let inputHtml='';
   if(it.input==='text') inputHtml=`<div class="answer-row"><label>Answer:</label>
-      <input class="ans" id="ansIn" autocomplete="off" autocapitalize="off" placeholder="${it.placeholder||'write here with your Pencil'}"></div>`;
+      <input class="ans" id="ansIn" type="text" inputmode="${it.fracAns?'text':'decimal'}" enterkeyhint="done"
+        autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"
+        placeholder="${it.placeholder||'Type your answer here'}"></div>`;
   else if(it.input==='compare') inputHtml=`<div class="choices row">
       <button class="choice" data-v="&gt;" onclick="selChoice(this)">&gt;</button>
       <button class="choice" data-v="&lt;" onclick="selChoice(this)">&lt;</button>
@@ -981,7 +983,9 @@ function renderQuestion(){
    </div>`);
   initCanvas();
   if(mode==='mock') tickClock();
-  const ai=$('#ansIn'); if(ai){ai.addEventListener('keydown',e=>{if(e.key==='Enter')doCheck();});}
+  const ai=$('#ansIn'); if(ai){
+    ai.addEventListener('keydown',e=>{if(e.key==='Enter')doCheck();});
+    ai.addEventListener('click',()=>ai.focus()); } /* belt & braces: finger tap always focuses + opens keyboard */
 }
 let selVal=null;
 function selChoice(btn){ selVal=btn.getAttribute('data-v').replace('&gt;','>').replace('&lt;','<');
@@ -1006,7 +1010,7 @@ function doCheck(){
   if(mode==='diag'||mode==='mock'){ recordAttempt(it,user,ok,true); selVal=null;
     if(mode==='mock'&&ok)S.mockLeft++;
     showFB('good',mode==='diag'?'Answer locked in! 🔒':'Saved ✓ … next one!');
-    disableCheck(); setTimeout(()=>{S.qi++;save();renderQuestion();},700); return; }
+    disableCheck(); setTimeout(()=>{ if(!S.cur) return; S.qi++;save();renderQuestion(); },700); return; }
   if(ok){
     const first=(attemptNo===1);
     recordAttempt(it,user,true,first);
@@ -1016,7 +1020,7 @@ function doCheck(){
     const cheers=['Brilliant! 🌟','Yes! Nailed it! 🎯','Superstar! ⭐','You got it! 🙌','Perfect! 💯','Sharp thinking! 🧠'];
     showFB('good',`${pick(cheers)}${won.length?'<br>🏅 New badge: <b>'+won.join(', ')+'</b>!':''}`);
     disableCheck();
-    setTimeout(()=>{S.qi++;save();renderQuestion();},1100);
+    setTimeout(()=>{ if(!S.cur) return; S.qi++;save();renderQuestion(); },1100);
   } else {
     if(attemptNo===1){ attemptNo=2; hintsUsed++;
       showFB('hint',`🤔 Not quite … here's a hint:<br><b>${it.hints[0]}</b><br><span class="small">Fix your working and try again!</span>`);
