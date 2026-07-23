@@ -112,37 +112,7 @@ function trimz(str){ /* remove unnecessary zeros from "5,080" -> "5,08" */
 function parseNum(s){ if(s==null)return null; s=String(s).trim().replace(/\s+/g,'').replace(',','.').replace('−','-');
   if(!/^-?(\d+\.?\d*|\.\d+)$/.test(s)) return null; return parseFloat(s); }
 function numEq(a,b){ return Math.abs(a-b)<1e-9; }
-function gcd(a,b){a=Math.abs(a);b=Math.abs(b);while(b){[a,b]=[b,a%b];}return a||1;}
-function parseFrac(s){ /* "3/4", "2 3/4", "0,75", "1,5" -> [num,den] or null */
-  if(s==null) return null; s=String(s).trim().replace('−','-');
-  let m=s.match(/^(-?\d+)\s+(\d+)\s*\/\s*(\d+)$/); if(m){const w=+m[1],n=+m[2],d=+m[3]; if(!d)return null; return [w*d+(w<0?-n:n), d];}
-  m=s.match(/^(-?\d+)\s*\/\s*(\d+)$/); if(m){ if(!+m[2])return null; return [+m[1],+m[2]]; }
-  const f=parseNum(s); if(f==null) return null;
-  const dp=(String(s).split(/[.,]/)[1]||'').length; const d=Math.pow(10,dp);
-  return [Math.round(f*d), d]; }
-function fracEq(a,b){ const A=parseFrac(a),B=parseFrac(b); if(!A||!B)return false; return A[0]*B[1]===B[0]*A[1]; }
-function isFracForm(s){ return /\//.test(String(s)); }
-function isSimplest(s){ const A=parseFrac(s); if(!A) return false;
-  const m=String(s).trim().match(/^(?:(-?\d+)\s+)?(-?\d+)\s*\/\s*(\d+)$/);
-  if(!m) return false; return gcd(+m[2],+m[3])===1; }
 function fr(n,d){ return '<span class="frac"><span>'+n+'</span><span>'+d+'</span></span>'; }
-function mixedfr(w,n,d){ return '<b>'+w+'</b>'+fr(n,d); }
-const COLNAMES=['units','tenths','hundredths','thousandths','tens','hundreds'];
-function digitAt(v,dp,col){ /* col: 'tenths'|'hundredths'|'thousandths'|'units'|'tens' for scaled int v,dp */
-  const s=String(v).padStart(dp+1,'0'); const w=s.slice(0,s.length-dp)||'0', f=s.slice(s.length-dp);
-  switch(col){case 'tenths':return f[0]||'0';case 'hundredths':return f[1]||'0';case 'thousandths':return f[2]||'0';
-    case 'units':return w[w.length-1];case 'tens':return w.length>1?w[w.length-2]:'0';case 'hundreds':return w.length>2?w[w.length-3]:'0';}
-  return '0';}
-function words(n){ /* whole number to words, n < 10000 */
-  const ones=['zero','one','two','three','four','five','six','seven','eight','nine','ten','eleven','twelve','thirteen','fourteen','fifteen','sixteen','seventeen','eighteen','nineteen'];
-  const tens=['','','twenty','thirty','forty','fifty','sixty','seventy','eighty','ninety'];
-  if(n<20)return ones[n];
-  if(n<100)return tens[Math.floor(n/10)]+(n%10?' '+ones[n%10]:'');
-  if(n<1000){const h=ones[Math.floor(n/100)]+' hundred';return n%100?h+' and '+words(n%100):h;}
-  const t=ones[Math.floor(n/1000)]+' thousand';const r=n%1000;
-  if(!r)return t; if(r<100)return t+' and '+words(r); return t+' '+words(r);}
-function digitsInWords(f){ const ones=['zero','one','two','three','four','five','six','seven','eight','nine'];
-  return f.split('').map(c=>ones[+c]).join(' ');}
 /* ============ skills (Paper 2) ============ */
 const SKILLS={
  s1:{name:'2-D Shapes & Quadrilaterals',emoji:'🔷',color:'#6c4ce0',essential:true},
@@ -428,7 +398,7 @@ TYPES.angTF={skill:'s2',gen(fx){
 const OBJS={cube:{f:6,e:12,v:8},'rectangular prism':{f:6,e:12,v:8},'triangular prism':{f:5,e:9,v:6},
  'square-based pyramid':{f:5,e:8,v:5},'triangular pyramid':{f:4,e:6,v:4}};
 function objSVG(t){
-  if(t==='cube') return svgWrap(120,110,cubeAt(15,65,40).replaceAll('30','40'),140)&&svgWrap(120,115,cubeAt(18,68,42),150);
+  if(t==='cube') return svgWrap(120,115,cubeAt(18,68,42),150);
   if(t==='rectangular prism') return svgWrap(160,110,`<polygon points="12,50 100,50 100,100 12,100" ${SW} fill="#f6f4ff"/><polygon points="12,50 40,26 128,26 100,50" ${SW} fill="#e2dbfa"/><polygon points="100,50 128,26 128,76 100,100" ${SW} fill="#cfc5f2"/>`,170);
   if(t==='triangular prism') return svgWrap(170,120,`<polygon points="15,100 75,100 45,45" ${SW} fill="#f6f4ff"/><polygon points="75,100 135,100 105,45 45,45" ${SW} fill="#e2dbfa"/><line x1="45" y1="45" x2="105" y2="45" ${SW}/><line x1="75" y1="100" x2="135" y2="100" ${SW}/>`,180);
   if(t==='square-based pyramid') return svgWrap(150,125,`<polygon points="20,100 75,115 130,100 75,15" ${SW} fill="#f6f4ff"/><line x1="75" y1="15" x2="75" y2="115" ${SW}/><line x1="20" y1="100" x2="130" y2="100" stroke="#2b2350" stroke-width="2" stroke-dasharray="5,4" fill="none"/>`,160);
@@ -611,7 +581,6 @@ TYPES.pattTable={skill:'s5',gen(fx){
 }};
 
 /* s6 ------------------------------------------------- */
-function capV(dp,maxW){ return randV(dp,maxW); }
 TYPES.ml2l={skill:'s6',gen(fx){
   const kind=(fx&&fx.kind)||pick(['big','zero','small','round']);
   let ml; if(kind==='big'){ml=ri(1001,9999);} else if(kind==='zero'){ml=ri(2,9)*1000+ri(1,9)*10;}
@@ -800,10 +769,6 @@ TYPES.massAddSub={skill:'s7',gen(fx){
 }};
 
 /* s8 ------------------------------------------------- */
-function dataSet(n,forceMode){ const s=[];
-  const m=ri(3,12); s.push(m,m); if(forceMode)s.push(m);
-  while(s.length<n){ const v=ri(2,15); if(s.filter(x=>x===v).length<(v===m?0:2))s.push(v); }
-  return s; }
 TYPES.mode={skill:'s8',gen(fx){
   const base=ri(5,60); const m=base+ri(0,5);
   const set=[m,m,m];
@@ -1127,7 +1092,6 @@ TYPES.cubeCount2={skill:'s4',gen(fx){
 TYPES.topView={skill:'s4',gen(fx){
   const i=(fx&&fx.i!=null)?fx.i:ri(0,STACK2.length-1); const p=STACK2[i];
   const correct=gridViewSVG(p.top);
-  const others=shuffle(STACK2.filter((q,j)=>j!==i&&q.top.length!==p.top.length||j!==i&&JSON.stringify(q.top)!==JSON.stringify(p.top)).filter((q,j)=>true)).slice(0,2);
   const opts=[correct];
   for(const o of STACK2){ if(opts.length>=3)break; const g=gridViewSVG(o.top); if(g!==correct&&!opts.includes(g))opts.push(g); }
   return {type:'topView',skill:'s4',input:'choice',choices:shuffle(opts),ans:correct,marks:2,diff:3,src:'Book p.142 Q2d',
@@ -1303,10 +1267,11 @@ function ep4d(){ return [makeItem('convMC'),makeItem('capCmp'),makeItem('tons',{
 /* ============ state ============ */
 const DEFAULT={name:'',pin:'',session:0,step:0,qi:0,cur:null,log:[],retryQueue:[],
   mastery:{s1:50,s2:50,s3:50,s4:50,s5:50,s6:50,s7:50,s8:50},
-  diagDone:false,streak:0,best:0,badges:[],stars:0,sessStart:0,stretch:[false,false,false,false,false,false,false,false,false],
-  mockScore:null,mockTotal:40,done:[false,false,false,false,false,false,false,false,false],overrides:{},comments:{},inbox:[]};
+  streak:0,best:0,badges:[],stars:0,stretch:[false,false,false,false,false,false,false,false,false],
+  mockScore:null,mockTotal:40,done:[false,false,false,false,false,false,false,false,false],overrides:{},comments:{}};
 let S=load();
-function load(){ try{ const j=localStorage.getItem('ddp2'); if(j) return Object.assign(JSON.parse(JSON.stringify(DEFAULT)),JSON.parse(j)); }catch(e){}
+function cleanName(s){ return String(s||'').trim().replace(/[\s\-−–—]+$/,''); }
+function load(){ try{ const j=localStorage.getItem('ddp2'); if(j){ const o=Object.assign(JSON.parse(JSON.stringify(DEFAULT)),JSON.parse(j)); o.name=cleanName(o.name); return o; } }catch(e){}
   return JSON.parse(JSON.stringify(DEFAULT)); }
 function save(){ try{ localStorage.setItem('ddp2',JSON.stringify(S)); }catch(e){
   for(const a of S.log){ if(a.png){a.png=null;a.pngDropped=true;} if(JSON.stringify(S).length<4000000)break; }
@@ -1436,13 +1401,12 @@ const SESSIONS=[
    {k:'screen',id:'submit'}]}];
 
 /* ============ answer checking ============ */
-function stripUnits(s){ return String(s).replace(/(kg|km|kℓ|kl|mℓ|ml|litres?|liters?|grams?|tons?|g|m|t|ℓ|l|r)\b/gi,'')
+function stripUnits(s){ return String(s).replace(/(kg|km|kℓ|kl|mℓ|ml|litres?|liters?|grams?|tons?|g|m|t|ℓ|l|r)(?![a-z0-9])/gi,'')
   .replace(/[Rr]\s*(?=\d)/,'').trim(); }
 function checkAnswer(item,user){
   if(item.input==='choice'||item.input==='compare') return user===item.ans;
   let u=String(user||'').trim(); if(!u) return false;
   if(item.exact){ const norm=x=>x.replace(/\s+/g,'').replace('.',','); return norm(u)===norm(item.ans); }
-  if(item.fracAns){ if(!isFracForm(u)) return false; return fracEq(u,item.ans)&&isSimplest(u); }
   const list=[item.ans].concat(item.alt||[]);
   /* text answers that are words (mode names, learner names, "no", "opposite" …) */
   const uw=u.toLowerCase().replace(/\s+/g,' ');
@@ -1477,7 +1441,7 @@ function renderFirstRun(){
     <p class="big">Together we'll get you ready for your <b>Paper 2</b> Maths exam … shapes, measuring and graphs!</p>
     <p class="sub">What is your name?</p>
     <input class="ans" id="nm" style="width:80%" placeholder="Type your name">
-    <button class="btn btn-main" onclick="const v=$('#nm').value.trim(); if(v){S.name=v;S.sessStart=Date.now();save();go();}">Let's go! 🚀</button>
+    <button class="btn btn-main" onclick="const v=cleanName($('#nm').value); if(v){S.name=v;save();go();}">Let's go! 🚀</button>
     <button class="btn btn-ghost" onclick="renderParentGate()">Parent corner</button></div>`);
 }
 function renderAllDone(){
@@ -1725,7 +1689,7 @@ function finishQuiz(){
 let cv=null,cctx=null,strokes=[],curStroke=null,tool='pen';
 function initCanvas(){
   cv=$('#cv'); if(!cv) return;
-  const w=cv.clientWidth||700,h=240,dpr=Math.min(2,window.devicePixelRatio||1);
+  const w=cv.clientWidth||700,h=cv.clientHeight||240,dpr=Math.min(2,window.devicePixelRatio||1);
   cv.width=w*dpr; cv.height=h*dpr;
   cctx=cv.getContext('2d'); cctx.scale(dpr,dpr);
   cv._w=w; cv._h=h; strokes=[]; tool='pen'; redraw();
@@ -1754,10 +1718,10 @@ function redraw(){ if(!cctx) return;
 }
 function canvasDirty(){ return strokes.some(s=>s.tool==='pen'); }
 function exportCanvas(){
-  const W=620,H=Math.round(240*(620/(cv._w||620)))||240;
-  const off=document.createElement('canvas'); off.width=W; off.height=240;
-  const c=off.getContext('2d'); const sx=W/(cv._w||W);
-  c.fillStyle='#fff'; c.fillRect(0,0,W,240);
+  const W=620,sx=W/(cv._w||W),H=Math.ceil((cv._h||240)*sx);
+  const off=document.createElement('canvas'); off.width=W; off.height=H;
+  const c=off.getContext('2d');
+  c.fillStyle='#fff'; c.fillRect(0,0,W,H);
   for(const s of strokes){ c.strokeStyle=s.tool==='pen'?'#1c2440':'#ffffff';
     c.lineWidth=s.w*sx; c.lineCap='round'; c.lineJoin='round';
     c.beginPath(); const p=s.pts; c.moveTo(p[0][0]*sx,p[0][1]*sx);
@@ -1849,10 +1813,10 @@ function renderParent(tab){
     const at=S.log; const ok=at.filter(a=>a.correct).length;
     const w=weakOrder();
     body=`<h2>Overview</h2>
-     <p><b>${esc(S.name)||'Learner'}</b> · Sessions done: <b>${S.done.filter(Boolean).length}/4</b> ·
+     <p><b>${esc(S.name)||'Learner'}</b> · Sessions done: <b>${S.done.filter(Boolean).length}/${S.done.length}</b> ·
         Questions: <b>${at.length}</b> (${ok} correct) · Best streak: <b>${S.best}</b>
         ${S.mockScore!=null?` · Mock: <b>${S.mockScore}/${S.mockTotal}</b>`:''}</p>
-     <p><b>Estimated exam Q8 band: ${estBand()}</b></p>
+     <p><b>Estimated Paper 2 band (out of 80): ${estBand()}</b></p>
      ${masteryHTML()}
      <p class="small"><b>Focus next:</b> ${w.slice(0,2).map(s=>SKILLS[s].name).join(' · ')}</p>
      <p class="small"><b>Session summary for iMessage / Claude:</b></p>
@@ -1887,7 +1851,7 @@ function renderParent(tab){
     body=`<h2>Settings</h2>
      <p class="small">Learner name</p><input class="ans" id="setName" value="${esc(S.name)}">
      <p class="small">Change PIN</p><input class="ans" id="setPin" type="tel" maxlength="4" placeholder="New 4 digit PIN">
-     <button class="btn btn-soft" onclick="const n=$('#setName').value.trim();if(n)S.name=n;
+     <button class="btn btn-soft" onclick="const n=cleanName($('#setName').value);if(n)S.name=n;
        const p=$('#setPin').value; if(p.length===4)S.pin=p; save(); alert('Saved.')">Save</button>
       <button class="btn btn-ghost" onclick="if(confirm('Reset EVERYTHING? All progress will be lost.')){localStorage.removeItem('ddp2');location.reload();}">⚠️ Reset the whole app</button>`;
   }
@@ -1928,7 +1892,7 @@ function importFile(){
     for(const a of (p.attempts||[])){ if(!have.has(a.id)){S.log.push(a);n++;} }
     if(p.mastery)S.mastery=p.mastery;
     if(p.mockScore!=null)S.mockScore=p.mockScore;
-    if(p.learner&&!S.name)S.name=p.learner;
+    if(p.learner&&!S.name)S.name=cleanName(p.learner);
     save(); $('#ioMsg').innerHTML=`<div class="feedback fb-good">Imported ${n} new answers from ${esc(p.learner||'learner')}, session ${p.session}.</div>`;
    }catch(e){ $('#ioMsg').innerHTML=`<div class="feedback fb-bad">That file doesn't look like a Shape Dash session.</div>`; } };
   r.readAsText(f);

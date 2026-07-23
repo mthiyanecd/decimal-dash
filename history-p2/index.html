@@ -31,9 +31,6 @@ p{line-height:1.5;} .sub{color:var(--sub);font-size:15px;}
 .big{font-size:22px;line-height:1.6;}
 .qtext{font-size:22px;line-height:1.7;margin:6px 0 14px;}
 .qtext u{text-decoration-color:var(--teal);text-decoration-thickness:3px;}
-.frac{display:inline-flex;flex-direction:column;align-items:center;vertical-align:middle;margin:0 3px;font-size:.8em;line-height:1.15;}
-.frac>span:first-child{border-bottom:2px solid var(--ink);padding:0 4px;}
-.frac>span:last-child{padding:0 4px;}
 .btn{display:block;width:100%;border:none;border-radius:16px;padding:16px;font-size:19px;font-weight:700;
   font-family:inherit;cursor:pointer;margin-top:12px;min-height:58px;}
 .btn:active{transform:scale(.985);}
@@ -100,49 +97,6 @@ const ri=(a,b)=>a+Math.floor(Math.random()*(b-a+1));
 const pick=a=>a[Math.floor(Math.random()*a.length)];
 const shuffle=a=>{a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;};
 const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');
-/* decimals as scaled integers: fmt(v,dp) -> SA comma string. fmt(1234,2)="12,34" */
-function fmt(v,dp){ if(dp===0) return String(v);
-  let s=String(Math.abs(v)).padStart(dp+1,'0');
-  let w=s.slice(0,-dp), f=s.slice(-dp);
-  return (v<0?'−':'')+w+','+f; }
-function trimz(str){ /* remove unnecessary zeros from "5,080" -> "5,08" */
-  if(!str.includes(',')) return str;
-  let [w,f]=str.split(','); f=f.replace(/0+$/,'');
-  return f.length? w+','+f : w; }
-function parseNum(s){ if(s==null)return null; s=String(s).trim().replace(/\s+/g,'').replace(',','.').replace('−','-');
-  if(!/^-?(\d+\.?\d*|\.\d+)$/.test(s)) return null; return parseFloat(s); }
-function numEq(a,b){ return Math.abs(a-b)<1e-9; }
-function gcd(a,b){a=Math.abs(a);b=Math.abs(b);while(b){[a,b]=[b,a%b];}return a||1;}
-function parseFrac(s){ /* "3/4", "2 3/4", "0,75", "1,5" -> [num,den] or null */
-  if(s==null) return null; s=String(s).trim().replace('−','-');
-  let m=s.match(/^(-?\d+)\s+(\d+)\s*\/\s*(\d+)$/); if(m){const w=+m[1],n=+m[2],d=+m[3]; if(!d)return null; return [w*d+(w<0?-n:n), d];}
-  m=s.match(/^(-?\d+)\s*\/\s*(\d+)$/); if(m){ if(!+m[2])return null; return [+m[1],+m[2]]; }
-  const f=parseNum(s); if(f==null) return null;
-  const dp=(String(s).split(/[.,]/)[1]||'').length; const d=Math.pow(10,dp);
-  return [Math.round(f*d), d]; }
-function fracEq(a,b){ const A=parseFrac(a),B=parseFrac(b); if(!A||!B)return false; return A[0]*B[1]===B[0]*A[1]; }
-function isFracForm(s){ return /\//.test(String(s)); }
-function isSimplest(s){ const A=parseFrac(s); if(!A) return false;
-  const m=String(s).trim().match(/^(?:(-?\d+)\s+)?(-?\d+)\s*\/\s*(\d+)$/);
-  if(!m) return false; return gcd(+m[2],+m[3])===1; }
-function fr(n,d){ return '<span class="frac"><span>'+n+'</span><span>'+d+'</span></span>'; }
-function mixedfr(w,n,d){ return '<b>'+w+'</b>'+fr(n,d); }
-const COLNAMES=['units','tenths','hundredths','thousandths','tens','hundreds'];
-function digitAt(v,dp,col){ /* col: 'tenths'|'hundredths'|'thousandths'|'units'|'tens' for scaled int v,dp */
-  const s=String(v).padStart(dp+1,'0'); const w=s.slice(0,s.length-dp)||'0', f=s.slice(s.length-dp);
-  switch(col){case 'tenths':return f[0]||'0';case 'hundredths':return f[1]||'0';case 'thousandths':return f[2]||'0';
-    case 'units':return w[w.length-1];case 'tens':return w.length>1?w[w.length-2]:'0';case 'hundreds':return w.length>2?w[w.length-3]:'0';}
-  return '0';}
-function words(n){ /* whole number to words, n < 10000 */
-  const ones=['zero','one','two','three','four','five','six','seven','eight','nine','ten','eleven','twelve','thirteen','fourteen','fifteen','sixteen','seventeen','eighteen','nineteen'];
-  const tens=['','','twenty','thirty','forty','fifty','sixty','seventy','eighty','ninety'];
-  if(n<20)return ones[n];
-  if(n<100)return tens[Math.floor(n/10)]+(n%10?' '+ones[n%10]:'');
-  if(n<1000){const h=ones[Math.floor(n/100)]+' hundred';return n%100?h+' and '+words(n%100):h;}
-  const t=ones[Math.floor(n/1000)]+' thousand';const r=n%1000;
-  if(!r)return t; if(r<100)return t+' and '+words(r); return t+' '+words(r);}
-function digitsInWords(f){ const ones=['zero','one','two','three','four','five','six','seven','eight','nine'];
-  return f.split('').map(c=>ones[+c]).join(' ');}
 /* ============ skills (Paper 2) ============ */
 const SKILLS={
  s1:{name:'Mapungubwe: Origins & Geography',emoji:'🏔️',color:'#b45309',essential:true},
@@ -215,7 +169,7 @@ let SEQ=0; function newId(t){return t+'-'+(++SEQ)+'-'+Date.now()%100000;}
 function mc(marks,diff,prompt,correct,wrong,sol,hint){return {input:'choice',marks,diff,prompt,choices:shuffle([correct].concat(wrong)),ans:correct,sol,hints:[hint]};}
 function fl(marks,diff,prompt,ans,alt,sol,hint,ph){return {input:'text',marks,diff,prompt,ans,alt:alt||[],sol,hints:[hint],placeholder:ph||'write here ✏️'};}
 function tf(marks,diff,statement,isTrue,sol,hint){return {input:'choice',marks,diff,prompt:'<b>True</b> or <b>false?</b><br>'+statement,choices:['True','False'],ans:isTrue?'True':'False',sol,hints:[hint]};}
-function wr(marks,diff,prompt,model,rubric,hint){return {input:'draw',marks,diff,prompt,model,sol:rubric,hints:[hint]};}
+function wr(marks,diff,prompt,model,rubric,hint){return {input:'draw',marks,diff,prompt,ans:'(written)',model,sol:rubric,hints:[hint]};}
 const TYPES={}; const SKILL_TYPES={};
 function reg(id,skill,draw,pool){ TYPES[id]={draw:!!draw,gen:fx=>{const f=(fx&&fx.i!=null)?pool[fx.i%pool.length]:pick(pool); const it=f(); it.skill=skill; return it;}}; (SKILL_TYPES[skill]=SKILL_TYPES[skill]||[]).push(id); }
 
@@ -390,9 +344,8 @@ reg('s10w','s10',true,[
 ]);
 
 /* ---------- builders ---------- */
-const DRAWTYPES=[];
 function makeItem(typeid,fx){ const it=TYPES[typeid].gen(fx||null); it.type=typeid; it.id=newId(typeid); return it; }
-function makeFromSkill(skill,diffCap,allowDraw){
+function makeFromSkill(skill,allowDraw){
   let ts=SKILL_TYPES[skill].slice();
   if(!allowDraw) ts=ts.filter(t=>!TYPES[t].draw);
   if(!ts.length) ts=SKILL_TYPES[skill];
@@ -418,10 +371,11 @@ function chalWrite(){ return [makeItem('s2w'),makeItem('s4w'),makeItem('s9w')]; 
 /* ============ state ============ */
 const DEFAULT={name:'',pin:'',session:0,step:0,qi:0,cur:null,log:[],retryQueue:[],
   mastery:{s1:50,s2:50,s3:50,s4:50,s5:50,s6:50,s7:50,s8:50,s9:50,s10:50},
-  diagDone:false,streak:0,best:0,badges:[],stars:0,sessStart:0,stretch:[false,false,false,false,false,false,false],
-  mockScore:null,mockTotal:35,done:[false,false,false,false,false,false,false],overrides:{},comments:{},inbox:[]};
+  streak:0,best:0,badges:[],stars:0,stretch:[false,false,false,false,false,false,false],
+  mockScore:null,mockTotal:35,done:[false,false,false,false,false,false,false],overrides:{},comments:{}};
 let S=load();
-function load(){ try{ const j=localStorage.getItem('histp2'); if(j) return Object.assign(JSON.parse(JSON.stringify(DEFAULT)),JSON.parse(j)); }catch(e){}
+function cleanName(s){ return String(s||'').trim().replace(/[\s\-−–—]+$/,''); }
+function load(){ try{ const j=localStorage.getItem('histp2'); if(j){ const o=Object.assign(JSON.parse(JSON.stringify(DEFAULT)),JSON.parse(j)); o.name=cleanName(o.name); return o; } }catch(e){}
   return JSON.parse(JSON.stringify(DEFAULT)); }
 function save(){ try{ localStorage.setItem('histp2',JSON.stringify(S)); }catch(e){
   for(const a of S.log){ if(a.png){a.png=null;a.pngDropped=true;} if(JSON.stringify(S).length<4000000)break; }
@@ -430,14 +384,14 @@ function save(){ try{ localStorage.setItem('histp2',JSON.stringify(S)); }catch(e
 /* ============ adaptive ============ */
 function weakOrder(){ return Object.keys(SKILLS).sort((a,b)=>
   (S.mastery[a]-(SKILLS[a].essential?15:0))-(S.mastery[b]-(SKILLS[b].essential?15:0))); }
-function pickPracticeItems(n,cap){
+function pickPracticeItems(n){
   const w=weakOrder(); const pool=[w[0],w[0],w[1],w[1],w[2],w[3]];
-  const items=[]; for(let i=0;i<n;i++) items.push(makeFromSkill(pool[i%pool.length],cap,false));
+  const items=[]; for(let i=0;i<n;i++) items.push(makeFromSkill(pool[i%pool.length],false));
   return shuffle(items); }
 function masteredSkills(){ return Object.keys(SKILLS).filter(s=>S.mastery[s]>=70); }
 function confidenceItems(n){
   const ms=masteredSkills(); const src=ms.length?ms:weakOrder().slice(-3);
-  const items=[];for(let i=0;i<n;i++)items.push(makeFromSkill(pick(src),2,false));
+  const items=[];for(let i=0;i<n;i++)items.push(makeFromSkill(pick(src),false));
   return items; }
 function updateMastery(skill,firstTry,correct,hints){
   let d; if(correct&&firstTry&&!hints)d=14; else if(correct&&firstTry)d=8; else if(correct)d=5; else d=-12;
@@ -534,8 +488,6 @@ const SESSIONS=[
    {k:'screen',id:'submit'}]}];
 
 /* ============ answer checking ============ */
-function stripUnits(s){ return String(s).replace(/(kg|km|kℓ|kl|mℓ|ml|litres?|liters?|grams?|tons?|g|m|t|ℓ|l|r)\b/gi,'')
-  .replace(/[Rr]\s*(?=\d)/,'').trim(); }
 function checkAnswer(item,user){
   if(item.input==='choice'||item.input==='compare') return user===item.ans;
   let u=String(user||'').trim(); if(!u) return false;
@@ -570,7 +522,7 @@ function renderFirstRun(){
     <p class="big">Together we'll get you ready for your <b>History Paper 2</b> exam … Mapungubwe, Great Zimbabwe and the great explorers!</p>
     <p class="sub">What is your name?</p>
     <input class="ans" id="nm" style="width:80%" placeholder="Type your name">
-    <button class="btn btn-main" onclick="const v=$('#nm').value.trim(); if(v){S.name=v;S.sessStart=Date.now();save();go();}">Let's go! 🚀</button>
+    <button class="btn btn-main" onclick="const v=cleanName($('#nm').value); if(v){S.name=v;save();go();}">Let's go! 🚀</button>
     <button class="btn btn-ghost" onclick="renderParentGate()">Parent corner</button></div>`);
 }
 function renderAllDone(){
@@ -660,7 +612,7 @@ function startQuiz(st){
     }
     else if(st.mode==='confidence') items=confidenceItems(st.n||5);
     else if(st.weak!=null){ const skill=S['lessonSkill'+st.weak]||weakOrder()[st.weak];
-      items=[];for(let i=0;i<(st.n||4);i++)items.push(makeFromSkill(skill,null,false)); }
+      items=[];for(let i=0;i<(st.n||4);i++)items.push(makeFromSkill(skill,false)); }
     else items=pickPracticeItems(st.n||6);
     S.cur={mode:st.mode,items:items,started:Date.now()};
     if(st.mode==='mock'){S.cur.deadline=Date.now()+35*60*1000;}
@@ -808,7 +760,7 @@ function finishQuiz(){
 let cv=null,cctx=null,strokes=[],curStroke=null,tool='pen';
 function initCanvas(){
   cv=$('#cv'); if(!cv) return;
-  const w=cv.clientWidth||700,h=240,dpr=Math.min(2,window.devicePixelRatio||1);
+  const w=cv.clientWidth||700,h=cv.clientHeight||240,dpr=Math.min(2,window.devicePixelRatio||1);
   cv.width=w*dpr; cv.height=h*dpr;
   cctx=cv.getContext('2d'); cctx.scale(dpr,dpr);
   cv._w=w; cv._h=h; strokes=[]; tool='pen'; redraw();
@@ -837,10 +789,10 @@ function redraw(){ if(!cctx) return;
 }
 function canvasDirty(){ return strokes.some(s=>s.tool==='pen'); }
 function exportCanvas(){
-  const W=620,H=Math.round(240*(620/(cv._w||620)))||240;
-  const off=document.createElement('canvas'); off.width=W; off.height=240;
-  const c=off.getContext('2d'); const sx=W/(cv._w||W);
-  c.fillStyle='#fff'; c.fillRect(0,0,W,240);
+  const W=620,sx=W/(cv._w||W),H=Math.ceil((cv._h||240)*sx);
+  const off=document.createElement('canvas'); off.width=W; off.height=H;
+  const c=off.getContext('2d');
+  c.fillStyle='#fff'; c.fillRect(0,0,W,H);
   for(const s of strokes){ c.strokeStyle=s.tool==='pen'?'#1c2440':'#ffffff';
     c.lineWidth=s.w*sx; c.lineCap='round'; c.lineJoin='round';
     c.beginPath(); const p=s.pts; c.moveTo(p[0][0]*sx,p[0][1]*sx);
@@ -932,7 +884,7 @@ function renderParent(tab){
     const at=S.log; const ok=at.filter(a=>a.correct).length;
     const w=weakOrder();
     body=`<h2>Overview</h2>
-     <p><b>${esc(S.name)||'Learner'}</b> · Sessions done: <b>${S.done.filter(Boolean).length}/6</b> ·
+     <p><b>${esc(S.name)||'Learner'}</b> · Sessions done: <b>${S.done.filter(Boolean).length}/${S.done.length}</b> ·
         Questions: <b>${at.length}</b> (${ok} correct) · Best streak: <b>${S.best}</b>
         ${S.mockScore!=null?` · Mock: <b>${S.mockScore}/${S.mockTotal}</b>`:''}</p>
      <p><b>Predicted exam band (out of 70): ${estBand()}</b></p>
@@ -970,7 +922,7 @@ function renderParent(tab){
     body=`<h2>Settings</h2>
      <p class="small">Learner name</p><input class="ans" id="setName" value="${esc(S.name)}">
      <p class="small">Change PIN</p><input class="ans" id="setPin" type="tel" maxlength="4" placeholder="New 4 digit PIN">
-     <button class="btn btn-soft" onclick="const n=$('#setName').value.trim();if(n)S.name=n;
+     <button class="btn btn-soft" onclick="const n=cleanName($('#setName').value);if(n)S.name=n;
        const p=$('#setPin').value; if(p.length===4)S.pin=p; save(); alert('Saved.')">Save</button>
       <button class="btn btn-ghost" onclick="if(confirm('Reset EVERYTHING? All progress will be lost.')){localStorage.removeItem('histp2');location.reload();}">⚠️ Reset the whole app</button>`;
   }
@@ -999,7 +951,7 @@ function renderPDetail(i){
 function makeCode(skill){
   const ts=shuffle(SKILL_TYPES[skill].slice()).slice(0,3);
   $('#codeOut').innerHTML=`<div class="feedback fb-good">Send her this code: <b>DD-${ts.join('.')}</b><br>
-    <a class="btn btn-teal linkbtn" style="margin-top:8px" href="sms:&body=${encodeURIComponent('Here is a bonus round for you! 🎁 Open Shape Dash, tap "code from Dad" and type: DD-'+ts.join('.'))}">Send by iMessage</a></div>`;
+    <a class="btn btn-teal linkbtn" style="margin-top:8px" href="sms:&body=${encodeURIComponent('Here is a bonus round for you! 🎁 Open Explorer Dash, tap "code from Dad" and type: DD-'+ts.join('.'))}">Send by iMessage</a></div>`;
 }
 function importFile(){
   const f=$('#impF').files[0]; if(!f){alert('Choose a file first.');return;}
@@ -1011,9 +963,9 @@ function importFile(){
     for(const a of (p.attempts||[])){ if(!have.has(a.id)){S.log.push(a);n++;} }
     if(p.mastery)S.mastery=p.mastery;
     if(p.mockScore!=null)S.mockScore=p.mockScore;
-    if(p.learner&&!S.name)S.name=p.learner;
+    if(p.learner&&!S.name)S.name=cleanName(p.learner);
     save(); $('#ioMsg').innerHTML=`<div class="feedback fb-good">Imported ${n} new answers from ${esc(p.learner||'learner')}, session ${p.session}.</div>`;
-   }catch(e){ $('#ioMsg').innerHTML=`<div class="feedback fb-bad">That file doesn't look like a Shape Dash session.</div>`; } };
+   }catch(e){ $('#ioMsg').innerHTML=`<div class="feedback fb-bad">That file doesn't look like an Explorer Dash session.</div>`; } };
   r.readAsText(f);
 }
 function exportAll(){

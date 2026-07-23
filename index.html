@@ -127,7 +127,6 @@ function isSimplest(s){ const A=parseFrac(s); if(!A) return false;
   if(!m) return false; return gcd(+m[2],+m[3])===1; }
 function fr(n,d){ return '<span class="frac"><span>'+n+'</span><span>'+d+'</span></span>'; }
 function mixedfr(w,n,d){ return '<b>'+w+'</b>'+fr(n,d); }
-const COLNAMES=['units','tenths','hundredths','thousandths','tens','hundreds'];
 function digitAt(v,dp,col){ /* col: 'tenths'|'hundredths'|'thousandths'|'units'|'tens' for scaled int v,dp */
   const s=String(v).padStart(dp+1,'0'); const w=s.slice(0,s.length-dp)||'0', f=s.slice(s.length-dp);
   switch(col){case 'tenths':return f[0]||'0';case 'hundredths':return f[1]||'0';case 'thousandths':return f[2]||'0';
@@ -626,10 +625,9 @@ TYPES.sent={skill:'s8',gen(fx){
   else if(k===2){const v=randV(1,ri(10,99));const m=pick([10,100]);const e=Math.log10(m);
     const A=fmt(v,1+e);prompt=`What is ${fmt(v,1)} <b>divided</b> by ${m}?`;ans=trimz(A);
     sol=`${fmt(v,1)} ÷ ${m} = <b>${trimz(A)}</b> (digits move ${e} column${e>1?'s':''} right).`;}
-  else{const v=ri(11,99);const m=pick([10,100]);const e=Math.log10(m);const A=fmt(v*10,1+e);
+  else{const v=ri(11,99);const m=pick([10,100]);const e=Math.log10(m);
+    const F=trimz(fmt(v,e)); ans=F;
     prompt=`Calculate the product of 10 and ${fmt(v,1)}. Then <b>divide your answer by ${m}</b>.`;
-    const r=fmt(v*10,e); ans=trimz(fmt(v*100,1+e-0)); // (v/10*10)/m
-    const finalv=v, find=1+e-1; const F=trimz(fmt(v,e)); ans=F;
     sol=`${fmt(v,1)} × 10 = ${v}. Then ${v} ÷ ${m} = <b>${F}</b>.`;}
   return {type:'sent',skill:'s8',input:'text',ans,marks:2,diff:3,src:'Book Q18.2 p.119',prompt,sol,
     hints:['"Product" means multiply. "Divided by" means ÷.','Digits slide left for ×, right for ÷.'],pencil:true};
@@ -731,10 +729,11 @@ function mockSet(){
 /* ============ state ============ */
 const DEFAULT={name:'',pin:'',session:0,step:0,qi:0,cur:null,log:[],retryQueue:[],
   mastery:{s1:50,s2:50,s3:50,s4:50,s5:50,s6:50,s7:50,s8:50},
-  diagDone:false,streak:0,best:0,badges:[],stars:0,sessStart:0,stretch:[false,false,false,false],
-  mockScore:null,mockTotal:10,mockLeft:0,done:[false,false,false,false],overrides:{},comments:{},inbox:[]};
+  streak:0,best:0,badges:[],stars:0,stretch:[false,false,false,false],
+  mockScore:null,mockTotal:10,done:[false,false,false,false],overrides:{},comments:{}};
 let S=load();
-function load(){ try{ const j=localStorage.getItem('dd1'); if(j) return Object.assign(JSON.parse(JSON.stringify(DEFAULT)),JSON.parse(j)); }catch(e){}
+function cleanName(s){ return String(s||'').trim().replace(/[\s\-−–—]+$/,''); }
+function load(){ try{ const j=localStorage.getItem('dd1'); if(j){ const o=Object.assign(JSON.parse(JSON.stringify(DEFAULT)),JSON.parse(j)); o.name=cleanName(o.name); return o; } }catch(e){}
   return JSON.parse(JSON.stringify(DEFAULT)); }
 function save(){ try{ localStorage.setItem('dd1',JSON.stringify(S)); }catch(e){ /* quota: drop oldest pngs */
   for(const a of S.log){ if(a.png){a.png=null;a.pngDropped=true;} if(JSON.stringify(S).length<4000000)break; }
@@ -851,7 +850,7 @@ function renderFirstRun(){
     <p class="big">I'm going to help you become a <b>Decimal Fractions star</b> before your exam.</p>
     <p class="sub">What is your name?</p>
     <input class="ans" id="nm" style="width:80%" placeholder="Type your name">
-    <button class="btn btn-main" onclick="const v=$('#nm').value.trim(); if(v){S.name=v;S.sessStart=Date.now();save();go();}">Let's go! 🚀</button>
+    <button class="btn btn-main" onclick="const v=cleanName($('#nm').value); if(v){S.name=v;save();go();}">Let's go! 🚀</button>
     <button class="btn btn-ghost" onclick="renderParentGate()">Parent corner</button></div>`);
 }
 function renderAllDone(){
@@ -931,7 +930,6 @@ function startQuiz(st){
     else if(st.mode==='retry'){
       const q=S.retryQueue.splice(0,8);
       items=q.length?q.map(r=>makeItem(r.type)):pickPracticeItems(5);
-      if(!q.length) S._noRetries=true;
     }
     else if(st.mode==='corrections'){
       const wrong=S.log.filter(a=>a.mode==='mock'&&!a.correct);
@@ -942,7 +940,7 @@ function startQuiz(st){
       items=[];for(let i=0;i<(st.n||4);i++)items.push(makeFromSkill(skill)); }
     else items=pickPracticeItems(st.n||8);
     S.cur={mode:st.mode,items:items,started:Date.now()};
-    if(st.mode==='mock'){S.cur.deadline=Date.now()+25*60*1000;S.mockLeft=0;}
+    if(st.mode==='mock'){S.cur.deadline=Date.now()+25*60*1000;}
     S.qi=0; save();
   }
   renderQuestion();
@@ -1008,7 +1006,6 @@ function doCheck(){
   const ok=checkAnswer(it,user);
   const mode=S.cur.mode;
   if(mode==='diag'||mode==='mock'){ recordAttempt(it,user,ok,true); selVal=null;
-    if(mode==='mock'&&ok)S.mockLeft++;
     showFB('good',mode==='diag'?'Answer locked in! 🔒':'Saved ✓ … next one!');
     disableCheck(); setTimeout(()=>{ if(!S.cur) return; S.qi++;save();renderQuestion(); },700); return; }
   if(ok){
@@ -1050,8 +1047,6 @@ function finishQuiz(){
   if(mode==='mock'){ S.mockScore=S.log.filter(a=>a.mode==='mock'&&a.correct).reduce((t,a)=>t+a.maxMarks,0);
     if(S.mockScore>S.mockTotal)S.mockScore=S.mockTotal; }
   S.cur=null;
-  /* stretch prompt ~ halfway through a session */
-  const elapsed=(Date.now()-(S.cur?S.cur.started:Date.now()));
   nextStepMaybeStretch();
 }
 function nextStepMaybeStretch(){
@@ -1072,7 +1067,7 @@ function nextStepMaybeStretch(){
 let cv=null,cctx=null,strokes=[],curStroke=null,tool='pen';
 function initCanvas(){
   cv=$('#cv'); if(!cv) return;
-  const w=cv.clientWidth||700,h=240,dpr=Math.min(2,window.devicePixelRatio||1);
+  const w=cv.clientWidth||700,h=cv.clientHeight||240,dpr=Math.min(2,window.devicePixelRatio||1);
   cv.width=w*dpr; cv.height=h*dpr;
   cctx=cv.getContext('2d'); cctx.scale(dpr,dpr);
   cv._w=w; cv._h=h; strokes=[]; tool='pen'; redraw();
@@ -1101,10 +1096,10 @@ function redraw(){ if(!cctx) return;
 }
 function canvasDirty(){ return strokes.some(s=>s.tool==='pen'); }
 function exportCanvas(){
-  const W=620,H=Math.round(240*(620/(cv._w||620)))||240;
-  const off=document.createElement('canvas'); off.width=W; off.height=240;
-  const c=off.getContext('2d'); const sx=W/(cv._w||W);
-  c.fillStyle='#fff'; c.fillRect(0,0,W,240);
+  const W=620,sx=W/(cv._w||W),H=Math.ceil((cv._h||240)*sx);
+  const off=document.createElement('canvas'); off.width=W; off.height=H;
+  const c=off.getContext('2d');
+  c.fillStyle='#fff'; c.fillRect(0,0,W,H);
   for(const s of strokes){ c.strokeStyle=s.tool==='pen'?'#1c2440':'#ffffff';
     c.lineWidth=s.w*sx; c.lineCap='round'; c.lineJoin='round';
     c.beginPath(); const p=s.pts; c.moveTo(p[0][0]*sx,p[0][1]*sx);
@@ -1234,7 +1229,7 @@ function renderParent(tab){
     body=`<h2>Settings</h2>
      <p class="small">Learner name</p><input class="ans" id="setName" value="${esc(S.name)}">
      <p class="small">Change PIN</p><input class="ans" id="setPin" type="tel" maxlength="4" placeholder="New 4 digit PIN">
-     <button class="btn btn-soft" onclick="const n=$('#setName').value.trim();if(n)S.name=n;
+     <button class="btn btn-soft" onclick="const n=cleanName($('#setName').value);if(n)S.name=n;
        const p=$('#setPin').value; if(p.length===4)S.pin=p; save(); alert('Saved.')">Save</button>
      <button class="btn btn-ghost" onclick="if(confirm('Reset EVERYTHING? All progress will be lost.')){localStorage.removeItem('dd1');location.reload();}">⚠️ Reset the whole app</button>`;
   }
@@ -1275,7 +1270,7 @@ function importFile(){
     for(const a of (p.attempts||[])){ if(!have.has(a.id)){S.log.push(a);n++;} }
     if(p.mastery)S.mastery=p.mastery;
     if(p.mockScore!=null)S.mockScore=p.mockScore;
-    if(p.learner&&!S.name)S.name=p.learner;
+    if(p.learner&&!S.name)S.name=cleanName(p.learner);
     save(); $('#ioMsg').innerHTML=`<div class="feedback fb-good">Imported ${n} new answers from ${esc(p.learner||'learner')}, session ${p.session}.</div>`;
    }catch(e){ $('#ioMsg').innerHTML=`<div class="feedback fb-bad">That file doesn't look like a Decimal Dash session.</div>`; } };
   r.readAsText(f);
