@@ -7,15 +7,15 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>Zimmy's Study Hub</title>
 <style>
-:root{--purple:#6c4ce0;--purple-d:#54389f;--teal:#12b5a5;--bg:#f4f2fc;--card:#fff;--ink:#2b2350;--sub:#6f6a8a;--line:#e6e2f5;--good:#1fa552;}
+:root{--purple:#6c4ce0;--purple-d:#54389f;--teal:#12b5a5;--bg:#f4f2fc;--card:#fff;--ink:#2b2350;--sub:#6f6a8a;--line:#e6e2f5;--good:#1fa552;--warn:#c23a4b;--gold:#e2a53a;}
 *{box-sizing:border-box;}
 html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);font-family:-apple-system,'SF Pro Rounded',BlinkMacSystemFont,'Segoe UI',sans-serif;-webkit-text-size-adjust:100%;}
-.wrap{max-width:760px;margin:0 auto;padding:22px 18px 40px;}
-.top{display:flex;align-items:center;gap:12px;margin:8px 2px 18px;}
+.wrap{max-width:760px;margin:0 auto;padding:22px 18px 70px;}
+.top{display:flex;align-items:center;gap:12px;margin:8px 2px 8px;}
 .logo{font-size:34px;}
 h1{font-size:26px;margin:0;letter-spacing:.2px;}
 h1 span{color:var(--teal);}
-.tag{color:var(--sub);font-size:15px;margin:2px 2px 22px;}
+.tag{color:var(--sub);font-size:15px;margin:2px 2px 20px;}
 .subject{font-weight:800;font-size:14px;text-transform:uppercase;letter-spacing:.8px;color:var(--purple-d);margin:22px 6px 10px;display:flex;align-items:center;gap:8px;}
 .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
 @media(max-width:520px){.grid{grid-template-columns:1fr;}}
@@ -27,22 +27,169 @@ h1 span{color:var(--teal);}
 .tile .meta{color:var(--sub);font-size:14px;}
 .pill{display:inline-block;font-size:12px;font-weight:700;border-radius:999px;padding:3px 10px;margin-top:10px;}
 .pill.ready{background:#e9f9f0;color:var(--good);}
-.pill.exam{background:#fbeef0;color:#c23a4b;}
+.pill.exam{background:#fbeef0;color:var(--warn);}
 .soon{opacity:.55;filter:grayscale(.3);}
 .soon .pill{background:#eee;color:#888;}
 .foot{color:var(--sub);font-size:13px;text-align:center;margin-top:30px;line-height:1.6;}
-.dot{width:8px;height:8px;border-radius:50%;background:var(--teal);display:inline-block;}
+
+.vault{background:linear-gradient(135deg,#2b2350,#54389f);color:#fff;border-radius:24px;padding:20px 20px 18px;margin:6px 0 8px;box-shadow:0 8px 26px rgba(80,60,160,.28);}
+.vault h2{margin:0 0 2px;font-size:20px;display:flex;align-items:center;gap:8px;}
+.vault .vsub{color:#d9d2f5;font-size:13px;margin-bottom:14px;}
+.vrow{display:flex;gap:12px;flex-wrap:wrap;}
+.vstat{background:rgba(255,255,255,.10);border-radius:16px;padding:12px 14px;flex:1;min-width:96px;text-align:center;}
+.vstat .n{font-size:28px;font-weight:800;line-height:1;}
+.vstat .l{font-size:12px;color:#e7e2fb;margin-top:5px;}
+.vbar{height:12px;border-radius:999px;background:rgba(255,255,255,.18);overflow:hidden;margin:14px 0 6px;}
+.vbar > i{display:block;height:100%;background:linear-gradient(90deg,#ffd36e,#ffb02e);}
+.vnote{font-size:12.5px;color:#e7e2fb;}
+.chests{font-size:24px;letter-spacing:2px;margin-top:6px;min-height:28px;}
+.openbtn{margin-top:12px;border:none;background:linear-gradient(90deg,#ffd36e,#ffb02e);color:#3a2b00;border-radius:14px;padding:12px 16px;font-size:16px;font-weight:800;width:100%;display:none;}
+
+.fromdad{background:var(--card);border-radius:20px;padding:16px 18px;margin:8px 0;box-shadow:0 3px 14px rgba(80,60,160,.08);}
+.fromdad h3{margin:0 0 10px;font-size:16px;display:flex;align-items:center;gap:8px;}
+.task{display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--line);font-size:14.5px;}
+.task:first-of-type{border-top:none;}
+.task .em{font-size:20px;}
+.task .due{color:var(--sub);font-size:12.5px;}
+.task.today .due{color:var(--warn);font-weight:700;}
+.task.done{opacity:.5;text-decoration:line-through;}
+
+.parentbtn{position:fixed;right:16px;bottom:16px;background:var(--purple);color:#fff;border:none;border-radius:999px;padding:12px 18px;font-size:15px;font-weight:700;box-shadow:0 6px 18px rgba(80,60,160,.35);z-index:20;}
+.ovl{position:fixed;inset:0;background:rgba(30,24,60,.55);display:none;align-items:flex-start;justify-content:center;padding:20px;z-index:30;overflow:auto;}
+.ovl.on{display:flex;}
+.sheet{background:var(--bg);width:100%;max-width:760px;border-radius:22px;padding:20px 18px 30px;}
+.sheet .x{float:right;border:none;background:#eee;border-radius:999px;width:34px;height:34px;font-size:18px;}
+.dcard{background:var(--card);border-radius:18px;padding:16px;margin:14px 0;box-shadow:0 3px 14px rgba(80,60,160,.08);}
+.dhead{display:flex;align-items:center;gap:10px;font-weight:800;font-size:18px;}
+.dmeta{color:var(--sub);font-size:13px;margin:4px 0 10px;}
+.kv{display:flex;gap:10px;flex-wrap:wrap;margin:8px 0;}
+.kv .b{background:var(--bg);border-radius:12px;padding:8px 12px;font-size:14px;}
+.kv .b b{font-size:17px;}
+.mrow{display:flex;align-items:center;gap:8px;margin:5px 0;font-size:13px;}
+.mrow .name{width:70px;color:var(--sub);}
+.mbar{flex:1;height:9px;border-radius:999px;background:var(--line);overflow:hidden;}
+.mbar>i{display:block;height:100%;}
+.issue{background:#fdeef0;color:var(--warn);border-radius:10px;padding:6px 10px;font-size:13px;margin:5px 0;}
+.ok{color:var(--good);font-size:13px;}
+.pininput{font-size:20px;letter-spacing:6px;text-align:center;padding:10px;border-radius:12px;border:2px solid var(--line);width:160px;}
+.muted{color:var(--sub);font-size:13px;}
+.live-dot{width:8px;height:8px;border-radius:50%;background:var(--good);display:inline-block;margin-right:5px;}
+.stale-dot{background:#c9c4dc;}
+.sec-h{font-weight:800;font-size:16px;margin:20px 2px 8px;}
+.form{background:var(--card);border-radius:18px;padding:16px;box-shadow:0 3px 14px rgba(80,60,160,.08);}
+.form label{display:block;font-size:12.5px;color:var(--sub);margin:10px 0 3px;}
+.form input,.form select,.form textarea{width:100%;padding:9px 10px;border:2px solid var(--line);border-radius:10px;font-size:15px;font-family:inherit;background:#fff;}
+.form .two{display:flex;gap:10px;}
+.form .two>div{flex:1;}
+.btn{border:none;background:var(--purple);color:#fff;border-radius:12px;padding:11px 16px;font-size:15px;font-weight:700;margin-top:14px;}
+.btn.ghost{background:#ece8fb;color:var(--purple-d);}
+.alist .row{display:flex;align-items:center;gap:10px;background:var(--card);border-radius:12px;padding:10px 12px;margin:8px 0;font-size:14px;box-shadow:0 2px 8px rgba(80,60,160,.06);}
+.alist .row.done{opacity:.55;}
+.alist .row .tt{flex:1;}
+.alist .row .due{color:var(--sub);font-size:12px;}
+.mini{border:none;border-radius:999px;padding:6px 10px;font-size:12.5px;font-weight:700;}
+.mini.g{background:#e9f9f0;color:var(--good);} .mini.r{background:#fbeef0;color:var(--warn);} .mini.n{background:#ece8fb;color:var(--purple-d);}
+.picwrap{margin-top:8px;}
+.picbtn{margin:3px 4px 3px 0;}
+.picview{margin-top:8px;}
+.rewardpick{display:block;width:100%;text-align:left;border:2px solid var(--line);background:#fff;border-radius:12px;padding:12px 14px;margin-top:10px;font-size:15px;font-weight:600;}
+.rewardpick:active{background:var(--bg);}
+.lvltag{display:inline-block;font-size:11px;font-weight:800;border-radius:999px;padding:2px 8px;background:#ece8fb;color:var(--purple-d);margin-right:6px;}
 </style>
 </head>
 <body>
 <div class="wrap">
   <div class="top"><div class="logo">🎒</div><h1>Zimmy's <span>Study Hub</span></h1></div>
   <div class="tag">Tap a card to start. Everything stays here for year-end revision.</div>
+
+  <div class="vault" id="vault">
+    <h2>🏴‍☠️ Treasure Vault</h2>
+    <div class="vsub" id="vaultName">Keep earning treasure by finishing your quests.</div>
+    <div class="vrow">
+      <div class="vstat"><div class="n" id="vChests">0</div><div class="l">Chests to open</div></div>
+      <div class="vstat"><div class="n" id="vKeys">0</div><div class="l">Keys ready</div></div>
+      <div class="vstat"><div class="n" id="vFrag">0</div><div class="l">Fragments</div></div>
+    </div>
+    <div class="vbar"><i id="vBar" style="width:0%"></i></div>
+    <div class="vnote" id="vNote">Collect 4 fragments to make a chest.</div>
+    <div class="chests" id="vChestRow"></div>
+    <button class="openbtn" id="openBtn">🔓 Open a chest</button>
+  </div>
+
+  <div class="fromdad" id="fromDad" style="display:none">
+    <h3>📌 From Dad</h3>
+    <div id="fromDadList"></div>
+  </div>
+
   <div id="board"></div>
   <div class="foot">Tip: add this page to your Home Screen for one-tap access to every subject.<br>Made with ❤️ by Dad.</div>
 </div>
+
+<button class="parentbtn" id="parentBtn">👤 Parent</button>
+
+<div class="ovl" id="ovl">
+  <div class="sheet">
+    <button class="x" id="ovlX">✕</button>
+    <h2 style="margin:2px 0 2px;">Parent corner</h2>
+    <div class="muted" id="syncMsg">Connecting…</div>
+    <div id="pinGate" style="margin:18px 0;"></div>
+    <div id="unlocked" style="display:none">
+      <div id="dash"></div>
+
+      <div class="sec-h">📌 Assign a task</div>
+      <div class="form" id="assignForm">
+        <label>Subject</label>
+        <select id="afSubject">
+          <option value="dd1">Decimal Dash · Maths Paper 1</option>
+          <option value="ddp2" selected>Shape Dash · Maths Paper 2</option>
+          <option value="histp2">Explorer Dash · History Paper 2</option>
+        </select>
+        <label>Task type</label>
+        <select id="afType"><option>Classwork</option><option>Homework</option><option>Assignment</option><option>Quiz</option><option>Test</option><option>Revision</option></select>
+        <label>Note for her (what to do)</label>
+        <input id="afNote" placeholder="e.g. Finish Session 6, focus on capacity">
+        <div class="two">
+          <div><label>Due date</label><input id="afDate" type="date"></div>
+          <div><label>Due time</label><input id="afTime" type="time"></div>
+          <div><label>Minutes</label><input id="afMin" type="number" min="0" step="5" placeholder="30"></div>
+        </div>
+        <button class="btn" id="afGo">Assign to her iPad</button>
+        <div class="muted" id="afMsg" style="margin-top:8px"></div>
+      </div>
+
+      <div class="sec-h">🗒️ Assigned tasks</div>
+      <div class="alist" id="alist"></div>
+
+      <div class="sec-h">🎁 Reward catalogue</div>
+      <div class="form">
+        <div class="two">
+          <div><label>Level</label><select id="cfLevel"><option>Spark</option><option>Star</option><option>Crown</option></select></div>
+          <div style="flex:2"><label>Reward</label><input id="cfDesc" placeholder="e.g. Ice cream outing"></div>
+        </div>
+        <button class="btn ghost" id="cfGo">Add reward</button>
+        <div id="catList" style="margin-top:12px"></div>
+      </div>
+
+      <div class="sec-h">✅ Redemptions to approve</div>
+      <div class="alist" id="redList"></div>
+
+      <div class="sec-h">🔑 Award exam Keys</div>
+      <div class="form">
+        <div class="muted">Enter after a real exam or milestone. Current exam Keys: <b id="curExamKeys">0</b></div>
+        <div class="two" style="margin-top:8px">
+          <div><label>Label</label><input id="kLabel" placeholder="e.g. Maths P2 exam 82%"></div>
+          <div><label>Keys</label><input id="kNum" type="number" min="1" max="6" value="1"></div>
+        </div>
+        <button class="btn ghost" id="kGo">Award Keys</button>
+        <div class="muted" id="kMsg" style="margin-top:8px"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="ovl" id="chestOvl"><div class="sheet" style="max-width:420px" id="chestSheet"></div></div>
+
 <script>
-// Add a new subject/assessment here and it appears automatically.
 const APPS=[
  {subject:'Mathematics', emoji:'🔟', items:[
    {app:'Decimal Dash', assessment:'Paper 1 · Decimals', url:'../', status:'ready', note:'Done'},
@@ -72,6 +219,244 @@ APPS.forEach(group=>{
   });
   board.appendChild(grid);
 });
+</script>
+
+<script type="module" src="../sync.js"></script>
+
+<script type="module">
+const META={
+  dd1:{app:'Decimal Dash',subject:'Mathematics · Paper 1',emoji:'🔢'},
+  ddp2:{app:'Shape Dash',subject:'Mathematics · Paper 2',emoji:'🔷'},
+  histp2:{app:'Explorer Dash',subject:'History · Paper 2',emoji:'🧭'}
+};
+const KEYS=['dd1','ddp2','histp2'];
+const $=id=>document.getElementById(id);
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let sync=null, lastVC=null;
+
+function lastTs(S){ if(!S) return 0; let t=S.updated||0; (S.log||[]).forEach(e=>{ if(e.ts>t)t=e.ts; }); return t; }
+function currentData(){
+  const remote= sync? sync.getState() : {}; const local = sync? sync.readLocal() : {};
+  const out={};
+  for(const k of KEYS){ const r=remote[k], l=local[k];
+    if(r&&l) out[k]= (r.updated||0) >= lastTs(l) ? r : l; else out[k]= r||l||null; }
+  return out;
+}
+function pctOfSession(S,i){ const es=(S.log||[]).filter(e=>e.session===i); if(!es.length) return null; let m=0,mx=0; es.forEach(e=>{ m+=e.marks||0; mx+=e.maxMarks||0; }); return mx? m/mx : null; }
+function summarise(key,S){
+  if(!S) return null;
+  const done=S.done||[]; const total=done.length; const completed=done.filter(Boolean).length;
+  const log=S.log||[]; const attempts=log.length;
+  let corr=0; log.forEach(e=>{ if(e.correct) corr++; });
+  const correctRate= attempts? corr/attempts : null;
+  const mock=(S.mockScore!=null)? {score:S.mockScore,total:S.mockTotal||40} : null;
+  const mastery=S.mastery||{};
+  let frag=0; const pcts=[];
+  for(let i=0;i<total;i++){ if(done[i]){ const p=pctOfSession(S,i); const pc=(p==null?0.6:p); pcts.push(pc); let f=2; if(pc>=0.7)f++; if(pc>=0.9)f++; frag+=f; } }
+  const avgPct= pcts.length? pcts.reduce((a,b)=>a+b,0)/pcts.length : null;
+  let keys=0; if(mock){ const mp=mock.score/mock.total; keys= mp>=0.9?4:mp>=0.8?3:mp>=0.7?2:mp>=0.6?1:(completed?1:0); }
+  const weak=Object.entries(mastery).filter(([k,v])=>v<65).sort((a,b)=>a[1]-b[1]).slice(0,3).map(([k,v])=>({skill:k,val:v}));
+  return {key,name:S.name||'',total,completed,attempts,correctRate,mock,mastery,frag,avgPct,keys,weak,retry:(S.retryQueue||[]).length,ts:lastTs(S)};
+}
+function collectionLevel(a){ if(a==null) return 'Spark'; return a>=0.9?'Crown':a>=0.75?'Star':'Spark'; }
+function timeAgo(t){ if(!t) return 'no activity yet'; const s=(Date.now()-t)/1000; if(s<90)return 'just now'; if(s<3600)return Math.round(s/60)+' min ago'; if(s<86400)return Math.round(s/3600)+' h ago'; return Math.round(s/86400)+' d ago'; }
+function isToday(d){ if(!d) return false; const t=new Date(); const s=t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0'); return d===s; }
+
+function vaultCalc(sums){
+  let frag=0, mockKeys=0; const avgs=[];
+  sums.forEach(s=>{ if(!s) return; frag+=s.frag; mockKeys+=s.keys; if(s.avgPct!=null) avgs.push(s.avgPct); });
+  const v= sync? (sync.getVault()||{}) : {};
+  const examKeys=v.examKeys||0, usedKeys=v.usedKeys||0, opened=v.openedChests||0;
+  const earnedChests=Math.floor(frag/4);
+  const totalKeys=mockKeys+examKeys;
+  const availableKeys=Math.max(0,totalKeys-usedKeys);
+  const availableChests=Math.max(0,earnedChests-opened);
+  const overall= avgs.length? avgs.reduce((a,b)=>a+b,0)/avgs.length : null;
+  const into=frag%4; const toNext=(into===0&&frag>0)?0:4-into;
+  return {frag,into,toNext,earnedChests,availableChests,totalKeys,availableKeys,overall,level:collectionLevel(overall)};
+}
+
+function renderVault(sums){
+  const vc=vaultCalc(sums); lastVC=vc;
+  $('vChests').textContent=vc.availableChests; $('vKeys').textContent=vc.availableKeys; $('vFrag').textContent=vc.frag;
+  $('vBar').style.width=Math.round((vc.into/4)*100)+'%';
+  $('vNote').textContent= vc.earnedChests>0
+     ? ('Collection level: '+vc.level+' · '+(vc.toNext===0?'a new chest is ready!':(vc.toNext+' fragment'+(vc.toNext>1?'s':'')+' to the next chest')))
+     : (vc.frag>0? (vc.toNext+' more fragment'+(vc.toNext>1?'s':'')+' for your first chest!') : 'Collect 4 fragments to make a chest.');
+  const name=(sums.find(s=>s&&s.name)||{}).name;
+  $('vaultName').textContent= name? (name+', keep earning treasure by finishing your quests.') : 'Keep earning treasure by finishing your quests.';
+  const icon= vc.overall==null?'🎁':vc.overall>=0.9?'👑':vc.overall>=0.75?'🌟':'🎁';
+  $('vChestRow').textContent= vc.availableChests? icon.repeat(Math.min(vc.availableChests,14))+(vc.availableChests>14?' +'+(vc.availableChests-14):'') : '';
+  $('openBtn').style.display=(vc.availableKeys>0 && vc.availableChests>0)?'block':'none';
+}
+
+function renderFromDad(){
+  if(!sync) return;
+  const list=(sync.getAssignments()||[]).slice().sort((a,b)=>((a.dueDate||'')+(a.dueTime||'')).localeCompare((b.dueDate||'')+(b.dueTime||'')));
+  const todo=list.filter(a=>a.status!=='done');
+  const box=$('fromDad'); const el=$('fromDadList');
+  if(!list.length){ box.style.display='none'; return; }
+  box.style.display='block';
+  el.innerHTML=(todo.length?todo:list.slice(0,3)).map(a=>{
+    const m=META[a.appKey]||{emoji:'📘'}; const due=[a.dueDate,a.dueTime].filter(Boolean).join(' ');
+    return '<div class="task '+(a.status==='done'?'done':'')+' '+(isToday(a.dueDate)?'today':'')+'">'
+      +'<span class="em">'+m.emoji+'</span>'
+      +'<div style="flex:1">'+esc(a.note||a.taskType)+(a.minutes?' <span class="due">· '+esc(a.minutes)+' min</span>':'')
+      +(due?'<div class="due">Due '+esc(due)+(isToday(a.dueDate)?' · today':'')+'</div>':'')+'</div>'
+      +(a.status==='done'?'<span class="mini g">✓ done</span>':'')+'</div>';
+  }).join('');
+}
+
+function masteryBar(name,val){ const col= val>=75?'var(--good)':val>=60?'var(--gold)':'var(--warn)'; return '<div class="mrow"><div class="name">'+name+'</div><div class="mbar"><i style="width:'+Math.max(4,val)+'%;background:'+col+'"></i></div><div style="width:34px;text-align:right">'+Math.round(val)+'</div></div>'; }
+
+async function loadImage(key,ts,el){
+  el.innerHTML='<div class="muted">Loading…</div>';
+  const img= sync? await sync.getImage(key,ts) : null;
+  if(!img){ el.innerHTML='<div class="muted">Not synced yet (she may need to reopen the app).</div>'; return; }
+  el.innerHTML='<img src="'+img.jpeg+'" style="max-width:100%;border-radius:10px;border:1px solid var(--line)">';
+}
+
+function renderDash(data,sums){
+  const dash=$('dash'); dash.innerHTML=''; let any=false;
+  KEYS.forEach((k,idx)=>{
+    const S=data[k]; const s=sums[idx]; const m=META[k]; if(!S||!s) return; any=true;
+    const card=document.createElement('div'); card.className='dcard';
+    const fresh=(Date.now()-s.ts)<6*3600*1000;
+    let html='<div class="dhead">'+m.emoji+' '+m.app+'</div>';
+    html+='<div class="dmeta">'+m.subject+' · <span class="'+(fresh?'live-dot':'stale-dot')+'"></span>'+timeAgo(s.ts)+(s.name?(' · '+esc(s.name)):'')+'</div>';
+    html+='<div class="kv"><div class="b">Sessions <b>'+s.completed+'/'+s.total+'</b></div>';
+    if(s.correctRate!=null) html+='<div class="b">Accuracy <b>'+Math.round(s.correctRate*100)+'%</b></div>';
+    if(s.mock) html+='<div class="b">Mock <b>'+s.mock.score+'/'+s.mock.total+'</b></div>';
+    html+='<div class="b">Keys <b>'+s.keys+'</b></div></div>';
+    if(s.weak.length) s.weak.forEach(w=>{ html+='<div class="issue">⚠️ '+w.skill.toUpperCase()+' needs attention · mastery '+Math.round(w.val)+'</div>'; });
+    if(s.retry>0) html+='<div class="issue">↻ '+s.retry+' question'+(s.retry>1?'s':'')+' in her retry queue</div>';
+    if(!s.weak.length && s.retry===0 && s.completed>0) html+='<div class="ok">✓ No flagged issues right now.</div>';
+    const mk=Object.keys(s.mastery);
+    if(mk.length){ html+='<div style="margin-top:10px">'; mk.forEach(sk=>{ html+=masteryBar(sk.toUpperCase(),s.mastery[sk]); }); html+='</div>'; }
+    const pics=(S.log||[]).filter(e=>e.hasPng&&e.ts).slice(-8).reverse();
+    if(pics.length){
+      html+='<details style="margin-top:10px"><summary style="cursor:pointer;color:var(--purple-d);font-weight:700;font-size:13px">🖼️ View her handwriting ('+pics.length+')</summary><div class="picwrap">'
+        + pics.map(p=>'<button class="mini n picbtn" data-key="'+k+'" data-ts="'+p.ts+'">'+esc(p.skill||p.type||'work')+'</button>').join(' ')
+        + '<div class="picview"></div></div></details>';
+    }
+    card.innerHTML=html; dash.appendChild(card);
+  });
+  if(!any) dash.innerHTML='<div class="muted" style="margin-top:16px">No synced activity yet. Once she opens an app on her iPad and finishes a question, it will appear here within a few seconds.</div>';
+  dash.querySelectorAll('.picbtn').forEach(b=>b.onclick=()=>{ const wrap=b.closest('.picwrap'); loadImage(b.getAttribute('data-key'),Number(b.getAttribute('data-ts')),wrap.querySelector('.picview')); });
+}
+
+function renderAssignList(){
+  const el=$('alist');
+  const list=(sync.getAssignments()||[]).slice().sort((a,b)=>(b.created||0)-(a.created||0));
+  if(!list.length){ el.innerHTML='<div class="muted">No tasks assigned yet.</div>'; return; }
+  el.innerHTML=list.map(a=>{ const m=META[a.appKey]||{emoji:'📘'}; const due=[a.dueDate,a.dueTime].filter(Boolean).join(' ');
+    return '<div class="row '+(a.status==='done'?'done':'')+'"><span>'+m.emoji+'</span>'
+      +'<div class="tt">'+esc(a.note||a.taskType)+'<div class="due">'+esc(a.taskType)+(due?' · due '+esc(due):'')+(a.minutes?' · '+esc(a.minutes)+' min':'')+'</div></div>'
+      +(a.status==='done'?'<button class="mini n" data-reopen="'+a.id+'">reopen</button>':'<button class="mini g" data-done="'+a.id+'">done</button>')
+      +'<button class="mini r" data-del="'+a.id+'">✕</button></div>';
+  }).join('');
+  el.querySelectorAll('[data-done]').forEach(b=>b.onclick=()=>sync.setAssignment(b.getAttribute('data-done'),{status:'done',doneTs:Date.now()}));
+  el.querySelectorAll('[data-reopen]').forEach(b=>b.onclick=()=>sync.setAssignment(b.getAttribute('data-reopen'),{status:'todo'}));
+  el.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{ if(confirm('Delete this task?')) sync.removeAssignment(b.getAttribute('data-del')); });
+}
+
+function renderCatalogue(){
+  const el=$('catList'); const cat=(sync.getCatalogue()||[]).slice().sort((a,b)=>['Spark','Star','Crown'].indexOf(a.level)-['Spark','Star','Crown'].indexOf(b.level));
+  if(!cat.length){ el.innerHTML='<div class="muted">No rewards yet. Add a few so she has something to unlock.</div>'; return; }
+  el.innerHTML=cat.map(c=>'<div class="row"><span class="lvltag">'+esc(c.level)+'</span><div class="tt">'+esc(c.description)+'</div><button class="mini r" data-delc="'+c.id+'">✕</button></div>').join('');
+  el.querySelectorAll('[data-delc]').forEach(b=>b.onclick=()=>{ if(confirm('Remove this reward?')) sync.removeCatalogueItem(b.getAttribute('data-delc')); });
+}
+
+function renderRedemptions(){
+  const el=$('redList'); const list=(sync.getRedemptions()||[]).slice().sort((a,b)=>(b.ts||0)-(a.ts||0));
+  if(!list.length){ el.innerHTML='<div class="muted">No chests opened yet.</div>'; return; }
+  el.innerHTML=list.map(r=>{
+    const st=r.status||'pending';
+    const badge= st==='pending'?'<span class="mini n">pending</span>': st==='approved'?'<span class="mini g">approved</span>': st==='fulfilled'?'<span class="mini g">given ✓</span>':'<span class="mini r">rejected</span>';
+    let btns='';
+    if(st==='pending') btns='<button class="mini g" data-appr="'+r.id+'">approve</button> <button class="mini r" data-rej="'+r.id+'">reject</button>';
+    else if(st==='approved') btns='<button class="mini g" data-ful="'+r.id+'">mark given</button>';
+    return '<div class="row"><span class="lvltag">'+esc(r.level)+'</span><div class="tt">'+esc(r.rewardDesc)+' '+badge+'</div>'+btns+'</div>';
+  }).join('');
+  el.querySelectorAll('[data-appr]').forEach(b=>b.onclick=()=>sync.setRedemption(b.getAttribute('data-appr'),{status:'approved',approvedTs:Date.now()}));
+  el.querySelectorAll('[data-rej]').forEach(b=>b.onclick=()=>sync.setRedemption(b.getAttribute('data-rej'),{status:'rejected'}));
+  el.querySelectorAll('[data-ful]').forEach(b=>b.onclick=()=>sync.setRedemption(b.getAttribute('data-ful'),{status:'fulfilled',fulfilledTs:Date.now()}));
+}
+
+// PIN gate
+function storedPin(data){ for(const k of KEYS){ if(data[k]&&data[k].pin) return String(data[k].pin); } return ''; }
+let unlocked=false;
+function renderGate(data,sums){
+  const pin=storedPin(data); const gate=$('pinGate');
+  if(!pin || unlocked){ unlocked=true; gate.innerHTML=''; $('unlocked').style.display='block';
+    renderDash(data,sums); renderAssignList(); renderCatalogue(); renderRedemptions();
+    const v=sync.getVault(); $('curExamKeys').textContent=(v&&v.examKeys)||0; return; }
+  $('unlocked').style.display='none';
+  gate.innerHTML='<div class="muted">Enter the parent PIN (the 4-digit code you set inside an app).</div>'
+    +'<div style="margin-top:10px"><input class="pininput" id="pinIn" inputmode="numeric" maxlength="8" type="password"> '
+    +'<button class="btn" style="margin-top:0" id="pinGo">Unlock</button></div>'
+    +'<div class="muted" id="pinErr" style="color:var(--warn);margin-top:8px"></div>';
+  $('pinGo').onclick=()=>{ if($('pinIn').value===pin){ unlocked=true; renderGate(data,sums); } else $('pinErr').textContent='That code did not match.'; };
+}
+
+// Chest opening (Choice mode)
+function showChest(html){ $('chestSheet').innerHTML=html; $('chestOvl').classList.add('on'); }
+function hideChest(){ $('chestOvl').classList.remove('on'); }
+function openChest(){
+  if(!lastVC || lastVC.availableKeys<1 || lastVC.availableChests<1) return;
+  const cat=(sync.getCatalogue()||[]);
+  let items=cat.filter(c=>c.level===lastVC.level); if(!items.length) items=cat.slice();
+  items=items.slice(0,3);
+  if(!items.length){ showChest('<h2>🔓 Open a chest</h2><div class="muted">Ask Dad to add some rewards to the treasure list first.</div><button class="btn" id="chestOk">OK</button>'); $('chestOk').onclick=hideChest; return; }
+  const html='<h2>🔓 Open a '+esc(lastVC.level)+' chest</h2><div class="muted">Pick your reward:</div>'
+    + items.map(it=>'<button class="rewardpick" data-id="'+it.id+'" data-desc="'+esc(it.description)+'">'+esc(it.description)+'</button>').join('')
+    + '<button class="btn ghost" id="chestCancel">Not yet</button>';
+  showChest(html);
+  document.querySelectorAll('.rewardpick').forEach(b=>b.onclick=()=>chooseReward(b.getAttribute('data-id'),b.getAttribute('data-desc'),lastVC.level));
+  $('chestCancel').onclick=hideChest;
+}
+async function chooseReward(id,desc,level){
+  const v=sync.getVault()||{};
+  try{
+    await sync.addRedemption({level,rewardId:id,rewardDesc:desc,status:'pending'});
+    await sync.updateVault({usedKeys:(v.usedKeys||0)+1, openedChests:(v.openedChests||0)+1});
+    showChest('<h2>🎉 Chest opened!</h2><div class="muted">You chose <b>'+esc(desc)+'</b>. Dad will approve it soon.</div><button class="btn" id="chestOk">Yay!</button>');
+    $('chestOk').onclick=hideChest;
+  }catch(e){ showChest('<h2>Hmm…</h2><div class="muted">Could not open it just now. Try again in a moment.</div><button class="btn" id="chestOk">OK</button>'); $('chestOk').onclick=hideChest; }
+}
+
+function refresh(){
+  const data=currentData();
+  const sums=KEYS.map(k=>summarise(k,data[k]));
+  renderVault(sums);
+  renderFromDad();
+  if($('ovl').classList.contains('on')) renderGate(data,sums);
+}
+
+function boot(){
+  if(!window.StudyDashSync){ setTimeout(boot,120); return; }
+  sync=window.StudyDashSync;
+  $('syncMsg').innerHTML='<span class="live-dot"></span>Live sync connected. Updates appear automatically.';
+  sync.onState(()=>refresh()); sync.onAssignments(()=>refresh()); sync.onVault(()=>refresh()); sync.onCatalogue(()=>refresh()); sync.onRedemptions(()=>refresh());
+  $('afGo').onclick=async()=>{
+    const note=$('afNote').value.trim(); if(!note){ $('afMsg').textContent='Add a short note so she knows what to do.'; return; }
+    try{ await sync.addAssignment({ appKey:$('afSubject').value, subject:(META[$('afSubject').value]||{}).subject||'', taskType:$('afType').value, note, dueDate:$('afDate').value||'', dueTime:$('afTime').value||'', minutes:$('afMin').value? Number($('afMin').value):null });
+      $('afNote').value=''; $('afMin').value=''; $('afMsg').textContent='Assigned. It is now on her iPad.'; setTimeout(()=>$('afMsg').textContent='',2500);
+    }catch(e){ $('afMsg').textContent='Could not save. Check the connection.'; }
+  };
+  $('cfGo').onclick=async()=>{ const d=$('cfDesc').value.trim(); if(!d) return; try{ await sync.addCatalogueItem({level:$('cfLevel').value, description:d}); $('cfDesc').value=''; }catch(e){} };
+  $('kGo').onclick=async()=>{ const label=$('kLabel').value.trim()||'Exam milestone'; const n=Number($('kNum').value)||0; if(n<1){ $('kMsg').textContent='Enter at least 1 Key.'; return; }
+    try{ await sync.awardKeys(label,n); $('kLabel').value=''; $('kMsg').textContent='Awarded '+n+' Key'+(n>1?'s':'')+'.'; setTimeout(()=>$('kMsg').textContent='',2500);}catch(e){ $('kMsg').textContent='Could not save.'; } };
+  refresh();
+}
+boot();
+
+$('parentBtn').onclick=()=>{ $('ovl').classList.add('on'); refresh(); };
+$('ovlX').onclick=()=>{ $('ovl').classList.remove('on'); };
+$('ovl').addEventListener('click',e=>{ if(e.target===$('ovl')) $('ovl').classList.remove('on'); });
+$('openBtn').onclick=openChest;
+$('chestOvl').addEventListener('click',e=>{ if(e.target===$('chestOvl')) hideChest(); });
+setInterval(refresh, 30000);
 </script>
 </body>
 </html>
