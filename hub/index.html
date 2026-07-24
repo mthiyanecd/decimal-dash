@@ -246,13 +246,15 @@ function pctOfSession(S,i){ const es=(S.log||[]).filter(e=>e.session===i); if(!e
 function summarise(key,S){
   if(!S) return null;
   const done=S.done||[]; const total=done.length; const completed=done.filter(Boolean).length;
-  const log=S.log||[]; const attempts=log.length;
-  let corr=0; log.forEach(e=>{ if(e.correct) corr++; });
-  const correctRate= attempts? corr/attempts : null;
+  const log=S.log||[]; const st=S.stats||null;
+  const attempts=st? st.attempts : log.length;
+  const correctRate= attempts? (st? st.correct/attempts : log.filter(e=>e.correct).length/attempts) : null;
   const mock=(S.mockScore!=null)? {score:S.mockScore,total:S.mockTotal||40} : null;
   const mastery=S.mastery||{};
   let frag=0; const pcts=[];
-  for(let i=0;i<total;i++){ if(done[i]){ const p=pctOfSession(S,i); const pc=(p==null?0.6:p); pcts.push(pc); let f=2; if(pc>=0.7)f++; if(pc>=0.9)f++; frag+=f; } }
+  for(let i=0;i<total;i++){ if(done[i]){ const ss=st&&st.sessions? st.sessions[i] : null;
+    const p= ss? (ss.maxMarks? ss.marks/ss.maxMarks : null) : pctOfSession(S,i);
+    const pc=(p==null?0.6:p); pcts.push(pc); let f=2; if(pc>=0.7)f++; if(pc>=0.9)f++; frag+=f; } }
   const avgPct= pcts.length? pcts.reduce((a,b)=>a+b,0)/pcts.length : null;
   let keys=0; if(mock){ const mp=mock.score/mock.total; keys= mp>=0.9?4:mp>=0.8?3:mp>=0.7?2:mp>=0.6?1:(completed?1:0); }
   const weak=Object.entries(mastery).filter(([k,v])=>v<65).sort((a,b)=>a[1]-b[1]).slice(0,3).map(([k,v])=>({skill:k,val:v}));
@@ -384,19 +386,20 @@ function renderRedemptions(){
 }
 
 // PIN gate
-function storedPin(data){ for(const k of KEYS){ if(data[k]&&data[k].pin) return String(data[k].pin); } return ''; }
+function storedPins(data){ const out=[]; for(const k of KEYS){ if(data[k]&&data[k].pin) out.push(String(data[k].pin)); } return out; }
 let unlocked=false;
 function renderGate(data,sums){
-  const pin=storedPin(data); const gate=$('pinGate');
-  if(!pin || unlocked){ unlocked=true; gate.innerHTML=''; $('unlocked').style.display='block';
+  const pins=storedPins(data); const gate=$('pinGate');
+  if(!pins.length || unlocked){ unlocked=true; gate.innerHTML=''; $('unlocked').style.display='block';
     renderDash(data,sums); renderAssignList(); renderCatalogue(); renderRedemptions();
     const v=sync.getVault(); $('curExamKeys').textContent=(v&&v.examKeys)||0; return; }
   $('unlocked').style.display='none';
+  if(gate.querySelector('#pinIn')) return; /* gate already showing … don't wipe a half-typed PIN on refresh */
   gate.innerHTML='<div class="muted">Enter the parent PIN (the 4-digit code you set inside an app).</div>'
     +'<div style="margin-top:10px"><input class="pininput" id="pinIn" inputmode="numeric" maxlength="8" type="password"> '
     +'<button class="btn" style="margin-top:0" id="pinGo">Unlock</button></div>'
     +'<div class="muted" id="pinErr" style="color:var(--warn);margin-top:8px"></div>';
-  $('pinGo').onclick=()=>{ if($('pinIn').value===pin){ unlocked=true; renderGate(data,sums); } else $('pinErr').textContent='That code did not match.'; };
+  $('pinGo').onclick=()=>{ if(pins.includes($('pinIn').value)){ unlocked=true; renderGate(data,sums); } else $('pinErr').textContent='That code did not match.'; };
 }
 
 // Chest opening (Choice mode)
@@ -406,7 +409,7 @@ function openChest(){
   if(!lastVC || lastVC.availableKeys<1 || lastVC.availableChests<1) return;
   const cat=(sync.getCatalogue()||[]);
   let items=cat.filter(c=>c.level===lastVC.level); if(!items.length) items=cat.slice();
-  items=items.slice(0,3);
+  items=items.map(x=>[Math.random(),x]).sort((a,b)=>a[0]-b[0]).map(p=>p[1]).slice(0,3);
   if(!items.length){ showChest('<h2>🔓 Open a chest</h2><div class="muted">Ask Dad to add some rewards to the treasure list first.</div><button class="btn" id="chestOk">OK</button>'); $('chestOk').onclick=hideChest; return; }
   const html='<h2>🔓 Open a '+esc(lastVC.level)+' chest</h2><div class="muted">Pick your reward:</div>'
     + items.map(it=>'<button class="rewardpick" data-id="'+it.id+'" data-desc="'+esc(it.description)+'">'+esc(it.description)+'</button>').join('')
@@ -430,7 +433,7 @@ function refresh(){
   const sums=KEYS.map(k=>summarise(k,data[k]));
   renderVault(sums);
   renderFromDad();
-  if($('ovl').classList.contains('on')) renderGate(data,sums);
+  if($('ovl').classList.contains('on')){ const sc=$('ovl').scrollTop; renderGate(data,sums); $('ovl').scrollTop=sc; }
 }
 
 function boot(){

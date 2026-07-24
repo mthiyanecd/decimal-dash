@@ -1,16 +1,24 @@
 # AGENTS.md
 
 ## What this is
-Three standalone, single-file HTML/JS revision apps for one Grade 6 learner (South Africa / CAPS curriculum), used on an iPad with Apple Pencil, plus a launcher page. Personal project — no build, no dependencies, no tests, no CI.
+Three standalone, single-file HTML/JS revision apps for one Grade 6 learner (South Africa / CAPS curriculum), used on an iPad with Apple Pencil, plus a launcher page and a shared sync layer. Personal project — no build, no tests, no CI. The apps still run fully standalone; `sync.js` adds an optional Firebase backend.
 
 - `index.html` — "Decimal Dash": decimal fractions, 4 guided sessions.
 - `paper2/index.html` — "Shape Dash": Maths Paper 2 topics (shapes, measurement, data), 9 sessions (5 core + 4 Extra Practice). Forked from `index.html`.
 - `history-p2/index.html` — "Explorer Dash": History Paper 2 (Mapungubwe → explorers), 7 sessions (6 core + 1 Extra Challenge). Forked from Shape Dash — has the `input:'draw'` + `selfMark(ok)` flow.
-- `hub/index.html` — "Study Hub" launcher; the `APPS` array at the top drives the tiles (relative links `../`, `../paper2/`, `../history-p2/`).
+- `hub/index.html` — "Study Hub" launcher + Treasure Vault + parent dashboard; the `APPS` array at the top drives the subject tiles (relative links `../`, `../paper2/`, `../history-p2/`).
+- `sync.js` — one shared ES module (Firebase Firestore + anonymous auth) loaded by all four pages. See "Sync layer" below.
 
 ## Run / verify / deploy
 - Edit the HTML, open it in a browser, check the JS console. That is the entire workflow — there is no lint/test/build command.
 - Deploy = push to `origin gh-pages` (the only branch). GitHub Pages serves `https://mthiyanecd.github.io/decimal-dash/`, `.../paper2/`, `.../history-p2/` and `.../hub/`.
+
+## Sync layer (sync.js)
+- Loaded as `<script type="module">` (root app uses `sync.js`, subfolder pages `../sync.js`). **ES modules are blocked over `file://`** — when testing pages straight from disk there is no sync and no "From Dad" banner; that is expected, not a bug.
+- Role is chosen by URL path (`/paper2/` → `ddp2`, `/history-p2/` → `histp2`, `/hub/` → hub, anything else → `dd1`). Apps push their localStorage state every 4 s but only when it changed (guarded against concurrent pushes); hub subscribes via `onSnapshot` and exposes everything as `window.StudyDashSync`.
+- Firestore layout: `families/zimmy/{state/<key>, assignments, vault, catalogue, redemptions, images/<key>_<ts>}`. State payloads have handwriting PNGs stripped (`hasPng` marker left behind); images go to separate docs, downscaled first, deduped via `sdImgPushed_<key>` localStorage sets (capped at 500).
+- **Firestore security rules live in the Firebase console, not this repo.** Rules are **deliberately permissive during initial testing** (as of Jul 2026) — with anonymous auth, anyone holding the public config can read/write `families/zimmy`. Do not "fix" this now; revisit (tighten rules / App Check) once testing is done. Firestore has a hard **1 MiB per-document** limit (unrelated to the 1 GB total plan storage) — guard against it by keeping the upload cap in `stripPngs` (`LOG_CAP = 400` newest log entries; `o.stats` is precomputed from the full local log so hub summaries stay exact). Local logs in the apps are never capped — full history stays on-device.
+- Don't reintroduce per-app copies of sync code — the single shared `sync.js` is deliberate.
 
 ## Architecture (not obvious from filenames)
 - Each app file is self-contained: CSS + utilities + `SKILLS`/`LESSONS` content + `TYPES` question generators + session/quiz engine + parent dashboard. ~600 lines (CSS, utils, Pencil canvas, parent corner) are **duplicated between the three app files** — apply shared fixes to all, but note the copies have drifted (each keeps a different subset of the math utils; Decimal Dash's `stripUnits` strips fewer units; its answer input has iPad-optimised `type`/`inputmode` the others lack) and don't overwrite one with another.
@@ -29,7 +37,7 @@ Three standalone, single-file HTML/JS revision apps for one Grade 6 learner (Sou
 ## Gotchas
 - Quiz auto-advance `setTimeout`s must stay guarded with `if(!S.cur) return;` — the mock-exam countdown can call `finishQuiz()` (nulling `S.cur`) while a post-answer advance is still pending, and an unguarded callback crashes `renderQuestion()`. There are 2 guarded sites in Decimal Dash and 3 each in Shape Dash and Explorer Dash (the extra one is in `selfMark`).
 - Pencil canvas: internal height comes from `cv.clientHeight` (draw questions set a 300px box via inline style; everything else uses the 240px CSS default). Don't re-hardcode 240 in `initCanvas`/`exportCanvas` — that clipped the bottom of draw canvases and their JPEG exports.
-- "Submit my work" has no backend: it downloads a session JSON (marker `app:'DecimalDash'` / `app:'ShapeDashP2'` / `app:'ExplorerDashH2'`, verified on import) and opens an `sms:` iMessage link. "Sent to iCloud" just means the iPad's browser download folder.
+- "Submit my work" downloads a session JSON (marker `app:'DecimalDash'` / `app:'ShapeDashP2'` / `app:'ExplorerDashH2'`, verified on import) and opens an `sms:` iMessage link — that flow is independent of the Firebase sync layer. "Sent to iCloud" just means the iPad's browser download folder.
 - Handwriting canvas exports JPEG data URLs into `S.log[].png`; on localStorage quota errors `save()` silently drops oldest pngs (~4 MB budget). Don't store more in `S` than necessary.
 - Parent retry codes match `/^DD-([a-zA-Z0-9.]+)$/` in all apps and push type ids into `retryQueue` — the `DD-` prefix is shared even in Shape Dash and Explorer Dash.
 

@@ -59,10 +59,26 @@ const redDoc   = id => doc(db, "families", FAMILY, "redemptions", id);
 const imgDoc   = (k, ts) => doc(db, "families", FAMILY, "images", k + "_" + ts);
 
 // ---- Helpers ----
+const LOG_CAP = 400; // max log entries uploaded … keeps each state doc well under Firestore's 1 MiB/doc limit
 function stripPngs(s) {
   try {
     const o = JSON.parse(JSON.stringify(s));
-    if (Array.isArray(o.log)) o.log.forEach(e => { if (e && e.png) { e.hasPng = true; delete e.png; } });
+    if (Array.isArray(o.log)) {
+      o.log.forEach(e => { if (e && e.png) { e.hasPng = true; delete e.png; } });
+      /* Precompute stats from the FULL local log, then cap the uploaded log.
+         The hub uses stats for summaries, so capping never skews them. */
+      const st = { attempts: o.log.length, correct: 0, sessions: {} };
+      o.log.forEach(e => {
+        if (!e) return;
+        if (e.correct) st.correct++;
+        if (e.session != null) {
+          const q = st.sessions[e.session] || (st.sessions[e.session] = { marks: 0, maxMarks: 0 });
+          q.marks += e.marks || 0; q.maxMarks += e.maxMarks || 0;
+        }
+      });
+      o.stats = st;
+      if (o.log.length > LOG_CAP) o.log = o.log.slice(-LOG_CAP);
+    }
     if (o.cur && o.cur.png) delete o.cur.png;
     return o;
   } catch (_) { return null; }
@@ -86,15 +102,18 @@ function compress(dataUrl, maxW = 800, q = 0.6) {
 }
 
 // ---- APP: push state ----
-let lastPushed = "";
+let lastPushed = "", pushing = false;
 async function pushIfChanged() {
+  if (pushing) return;
   const raw = localStorage.getItem(myKey);
   if (!raw || raw === lastPushed) return;
   let s; try { s = JSON.parse(raw); } catch (_) { return; }
   const payload = stripPngs(s); if (!payload) return;
   payload.updated = Date.now(); payload.app = myApp;
+  pushing = true;
   try { await ready; await setDoc(stateDoc(myKey), payload); lastPushed = raw; }
   catch (e) { console.warn("[sync] push failed", e); }
+  finally { pushing = false; }
 }
 
 // ---- APP: push handwriting images (card-free) ----
