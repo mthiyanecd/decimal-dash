@@ -311,11 +311,16 @@ function renderFromDad(){
 
 function masteryBar(name,val){ const col= val>=75?'var(--good)':val>=60?'var(--gold)':'var(--warn)'; return '<div class="mrow"><div class="name">'+name+'</div><div class="mbar"><i style="width:'+Math.max(4,val)+'%;background:'+col+'"></i></div><div style="width:34px;text-align:right">'+Math.round(val)+'</div></div>'; }
 
+const IMG_DATA_URI=/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=\s]+$/;
 async function loadImage(key,ts,el){
-  el.innerHTML='<div class="muted">Loading…</div>';
+  el.textContent='Loading…';
   const img= sync? await sync.getImage(key,ts) : null;
-  if(!img){ el.innerHTML='<div class="muted">Not synced yet (she may need to reopen the app).</div>'; return; }
-  el.innerHTML='<img src="'+img.jpeg+'" style="max-width:100%;border-radius:10px;border:1px solid var(--line)">';
+  if(!img || typeof img.jpeg!=='string' || !IMG_DATA_URI.test(img.jpeg)){ el.textContent='Not synced yet (she may need to reopen the app).'; return; }
+  el.textContent='';
+  const im=document.createElement('img');   // DOM + validated data URI: a malicious images doc cannot inject HTML (audit C-02)
+  im.src=img.jpeg;
+  im.style.cssText='max-width:100%;border-radius:10px;border:1px solid var(--line)';
+  el.appendChild(im);
 }
 
 function renderDash(data,sums){

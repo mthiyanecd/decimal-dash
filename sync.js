@@ -124,9 +124,14 @@ async function pushImages() {
     const raw = localStorage.getItem(myKey); if (!raw) return;
     let s; try { s = JSON.parse(raw); } catch (_) { return; }
     const mk = "sdImgPushed_" + myKey;
-    const pushed = new Set(JSON.parse(localStorage.getItem(mk) || "[]"));
-    for (const e of (s.log || [])) {
-      if (e && e.png && e.ts && !pushed.has(e.ts)) {
+    let pushed;
+    try { const arr = JSON.parse(localStorage.getItem(mk) || "[]"); pushed = new Set(Array.isArray(arr) ? arr : []); }
+    catch (_) { pushed = new Set(); }
+    // Scan only the newest 500 image-bearing entries, matching the marker cap,
+    // so old images are never evicted-then-re-uploaded in a loop (audit H-03).
+    const recent = (Array.isArray(s.log) ? s.log : []).filter(e => e && e.png && e.ts).slice(-500);
+    for (const e of recent) {
+      if (!pushed.has(e.ts)) {
         const c = await compress(e.png); if (!c) continue;
         try {
           await ready;
