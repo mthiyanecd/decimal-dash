@@ -96,7 +96,7 @@ const app=document.getElementById('app');
 const ri=(a,b)=>a+Math.floor(Math.random()*(b-a+1));
 const pick=a=>a[Math.floor(Math.random()*a.length)];
 const shuffle=a=>{a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;};
-const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 /* ============ skills (Paper 2) ============ */
 const SKILLS={
  s1:{name:'Mapungubwe: Origins & Geography',emoji:'🏔️',color:'#b45309',essential:true},
@@ -394,7 +394,7 @@ function notifySaveFailed(){ try{ let b=document.getElementById('saveWarn'); if(
 function save(){ try{ localStorage.setItem('histp2',JSON.stringify(S)); saveFailed=false; return true; }
   catch(e){ const quota=e&&(e.name==='QuotaExceededError'||e.code===22||e.code===1014);
     if(!quota){ saveFailed=true; console.warn('[save] non-quota failure',e); notifySaveFailed(); return false; }
-    for(const a of S.log){ if(a.png){a.png=null;a.pngDropped=true;} if(JSON.stringify(S).length<4000000)break; }
+    let _n=0; for(const a of S.log){ if(a.png){a.png=null;a.pngDropped=true;} if(++_n%10===0 && JSON.stringify(S).length<4000000) break; }
     try{ localStorage.setItem('histp2',JSON.stringify(S)); saveFailed=false; return true; }
     catch(e2){ saveFailed=true; console.warn('[save] still failing after trim',e2); notifySaveFailed(); return false; } } }
 

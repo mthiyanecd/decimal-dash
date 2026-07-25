@@ -324,7 +324,9 @@ async function loadImage(key,ts,el){
 }
 
 function renderDash(data,sums){
-  const dash=$('dash'); dash.innerHTML=''; let any=false;
+  const dash=$('dash');
+  if(dash.querySelector('details[open] .picview img')) return;  // #8: don't wipe the image the parent is viewing
+  dash.innerHTML=''; let any=false;
   KEYS.forEach((k,idx)=>{
     const S=data[k]; const s=sums[idx]; const m=META[k]; if(!S||!s) return; any=true;
     const card=document.createElement('div'); card.className='dcard';
@@ -335,11 +337,11 @@ function renderDash(data,sums){
     if(s.correctRate!=null) html+='<div class="b">Accuracy <b>'+Math.round(s.correctRate*100)+'%</b></div>';
     if(s.mock) html+='<div class="b">Mock <b>'+s.mock.score+'/'+s.mock.total+'</b></div>';
     html+='<div class="b">Keys <b>'+s.keys+'</b></div></div>';
-    if(s.weak.length) s.weak.forEach(w=>{ html+='<div class="issue">⚠️ '+w.skill.toUpperCase()+' needs attention · mastery '+Math.round(w.val)+'</div>'; });
+    if(s.weak.length) s.weak.forEach(w=>{ html+='<div class="issue">⚠️ '+esc(w.skill.toUpperCase())+' needs attention · mastery '+Math.round(w.val)+'</div>'; });
     if(s.retry>0) html+='<div class="issue">↻ '+s.retry+' question'+(s.retry>1?'s':'')+' in her retry queue</div>';
     if(!s.weak.length && s.retry===0 && s.completed>0) html+='<div class="ok">✓ No flagged issues right now.</div>';
     const mk=Object.keys(s.mastery);
-    if(mk.length){ html+='<div style="margin-top:10px">'; mk.forEach(sk=>{ html+=masteryBar(sk.toUpperCase(),s.mastery[sk]); }); html+='</div>'; }
+    if(mk.length){ html+='<div style="margin-top:10px">'; mk.forEach(sk=>{ html+=masteryBar(esc(sk.toUpperCase()),s.mastery[sk]); }); html+='</div>'; }
     const pics=(S.log||[]).filter(e=>e.hasPng&&e.ts).slice(-8).reverse();
     if(pics.length){
       html+='<details style="margin-top:10px"><summary style="cursor:pointer;color:var(--purple-d);font-weight:700;font-size:13px">🖼️ View her handwriting ('+pics.length+')</summary><div class="picwrap">'

@@ -99,7 +99,7 @@ const app=document.getElementById('app');
 const ri=(a,b)=>a+Math.floor(Math.random()*(b-a+1));
 const pick=a=>a[Math.floor(Math.random()*a.length)];
 const shuffle=a=>{a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;};
-const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 /* decimals as scaled integers: fmt(v,dp) -> SA comma string. fmt(1234,2)="12,34" */
 function fmt(v,dp){ if(dp===0) return String(v);
   let s=String(Math.abs(v)).padStart(dp+1,'0');
@@ -625,6 +625,7 @@ TYPES.capCmp={skill:'s6',gen(fx){
   else if(kind==='l'){ const a=randV(2,ri(1,9)); let b=randV(2,ri(1,9)); if(a===b)b+=3; L=[trimz(fmt(a,2))+' ℓ',a*10]; R=[trimz(fmt(b,2))+' ℓ',b*10]; }
   else { const fr2=pick([[1,4,250],[3,4,750],[1,2,500]]); L=['<span class="frac"><span>'+fr2[0]+'</span><span>'+fr2[1]+'</span></span> ℓ',fr2[2]];
     R=[pick([fr2[2]/10,fr2[2],fr2[2]*10])+' mℓ',0]; R[1]=parseInt(R[0]); }
+  if(Math.random()<.5){[L,R]=[R,L];}
   lv=L[1];rv=R[1];
   const sym=lv>rv?'>':lv<rv?'<':'=';
   return {type:'capCmp',skill:'s6',input:'compare',ans:sym,marks:1,diff:3,src:'Book p.122 Q4.1',
@@ -723,6 +724,7 @@ TYPES.massCmp={skill:'s7',gen(fx){
   if(kind==='eq'){ const v=randV(1,ri(1,9)); L=[fmt(v,1)+' kg',v*100]; R=[(v*100)+' g',v*100]; }
   else if(kind==='g'){ const v=ri(2,9); L=[(v*100+ri(1,80))+' g',0]; L[1]=parseInt(L[0]); R=[fmt(v*10+ri(1,9),1)+' kg',0]; R[1]=parseNum(R[0].replace(' kg',''))*1000; }
   else { const a=randV(2,ri(0,3)); let b=a; while(b===a)b=randV(2,ri(0,3)); L=[trimz(fmt(a,2))+' kg',a*10]; R=[trimz(fmt(b,2))+' kg',b*10]; }
+  if(Math.random()<.5){[L,R]=[R,L];}
   const sym=L[1]>R[1]?'>':L[1]<R[1]?'<':'=';
   return {type:'massCmp',skill:'s7',input:'compare',ans:sym,marks:1,diff:3,src:'Book p.129 Q4.1',
     prompt:`Fill in &gt;, &lt; or = : &nbsp; <b style="font-size:1.15em">${L[0]} &nbsp;☐&nbsp; ${R[0]}</b>`,
@@ -1144,7 +1146,7 @@ TYPES.fracOf={skill:'s8',gen(fx){
 }};
 /* pictograph: harder keys + reverse */
 TYPES.pictoHard={skill:'s8',gen(fx){
-  const key=pick([25,50,20]);
+  const key=pick([50,20]);
   if((fx&&fx.rev)||Math.random()<0.5){
     const syms=pick([2.5,3.5,4.5,1.5]);
     const total=key*syms;
@@ -1290,7 +1292,7 @@ function notifySaveFailed(){ try{ let b=document.getElementById('saveWarn'); if(
 function save(){ try{ localStorage.setItem('ddp2',JSON.stringify(S)); saveFailed=false; return true; }
   catch(e){ const quota=e&&(e.name==='QuotaExceededError'||e.code===22||e.code===1014);
     if(!quota){ saveFailed=true; console.warn('[save] non-quota failure',e); notifySaveFailed(); return false; }
-    for(const a of S.log){ if(a.png){a.png=null;a.pngDropped=true;} if(JSON.stringify(S).length<4000000)break; }
+    let _n=0; for(const a of S.log){ if(a.png){a.png=null;a.pngDropped=true;} if(++_n%10===0 && JSON.stringify(S).length<4000000) break; }
     try{ localStorage.setItem('ddp2',JSON.stringify(S)); saveFailed=false; return true; }
     catch(e2){ saveFailed=true; console.warn('[save] still failing after trim',e2); notifySaveFailed(); return false; } } }
 
