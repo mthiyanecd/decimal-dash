@@ -615,7 +615,7 @@ function startQuiz(st){
       items=[];for(let i=0;i<(st.n||4);i++)items.push(makeFromSkill(skill,false)); }
     else items=pickPracticeItems(st.n||6);
     S.cur={mode:st.mode,items:items,started:Date.now()};
-    if(st.mode==='mock'){S.cur.deadline=Date.now()+35*60*1000;}
+    if(st.mode==='mock'){S.cur.deadline=Date.now()+35*60*1000;S.cur.mockStart=Date.now();}
     S.qi=0; save();
   }
   renderQuestion();
@@ -740,8 +740,8 @@ function recordAttempt(it,user,correct,firstTry){
 }
 function finishQuiz(){
   const mode=S.cur?S.cur.mode:null;
-  if(mode==='mock'){ S.mockScore=Math.min(S.mockTotal,
-    S.log.filter(a=>a.mode==='mock'&&a.correct).reduce((t,a)=>t+a.maxMarks,0)); }
+  if(mode==='mock'){ const start=(S.cur&&S.cur.mockStart)||0; S.mockScore=Math.min(S.mockTotal,
+    S.log.filter(a=>a.mode==='mock'&&a.correct&&(a.ts||0)>=start).reduce((t,a)=>t+a.maxMarks,0)); }  // H-04: only this mock run counts
   S.cur=null;
   const mid=Math.floor(SESSIONS[S.session].steps.length/2);
   if(!S.stretch[S.session]&&S.step===mid){
