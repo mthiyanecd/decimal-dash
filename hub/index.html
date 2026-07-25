@@ -392,19 +392,25 @@ function renderRedemptions(){
 
 // PIN gate
 function storedPins(data){ const out=[]; for(const k of KEYS){ if(data[k]&&data[k].pin) out.push(String(data[k].pin)); } return out; }
+function storedPinHashes(data){ const out=[]; for(const k of KEYS){ if(data[k]&&data[k].pinHash) out.push(String(data[k].pinHash)); } return out; }
+function anyLoaded(data){ return KEYS.some(k=>!!data[k]); }
+async function sha256(str){ const b=new TextEncoder().encode(String(str)); const h=await crypto.subtle.digest("SHA-256",b); return [...new Uint8Array(h)].map(x=>x.toString(16).padStart(2,"0")).join(""); }
 let unlocked=false;
 function renderGate(data,sums){
-  const pins=storedPins(data); const gate=$('pinGate');
-  if(!pins.length || unlocked){ unlocked=true; gate.innerHTML=''; $('unlocked').style.display='block';
+  const gate=$('pinGate');
+  const plains=storedPins(data), hashes=storedPinHashes(data);
+  const hasPin=plains.length||hashes.length, loaded=anyLoaded(data);
+  if(unlocked || (loaded && !hasPin)){ gate.innerHTML=''; $('unlocked').style.display='block';
     renderDash(data,sums); renderAssignList(); renderCatalogue(); renderRedemptions();
     const v=sync.getVault(); $('curExamKeys').textContent=(v&&v.examKeys)||0; return; }
   $('unlocked').style.display='none';
+  if(!loaded){ gate.innerHTML='<div class="muted">Loading family settings…</div>'; return; }
   if(gate.querySelector('#pinIn')) return; /* gate already showing … don't wipe a half-typed PIN on refresh */
   gate.innerHTML='<div class="muted">Enter the parent PIN (the 4-digit code you set inside an app).</div>'
     +'<div style="margin-top:10px"><input class="pininput" id="pinIn" inputmode="numeric" maxlength="8" type="password"> '
     +'<button class="btn" style="margin-top:0" id="pinGo">Unlock</button></div>'
     +'<div class="muted" id="pinErr" style="color:var(--warn);margin-top:8px"></div>';
-  $('pinGo').onclick=()=>{ if(pins.includes($('pinIn').value)){ unlocked=true; renderGate(data,sums); } else $('pinErr').textContent='That code did not match.'; };
+  $('pinGo').onclick=async()=>{ const val=$('pinIn').value; let ok=plains.includes(val); if(!ok&&hashes.length){ try{ ok=hashes.includes(await sha256(val)); }catch(_){} } if(ok){ unlocked=true; renderGate(data,sums); } else $('pinErr').textContent='That code did not match.'; };
 }
 
 // Chest opening (Choice mode)

@@ -80,6 +80,7 @@ function stripPngs(s) {
       if (o.log.length > LOG_CAP) o.log = o.log.slice(-LOG_CAP);
     }
     if (o.cur && o.cur.png) delete o.cur.png;
+    if ("pin" in o) delete o.pin;   // never sync the parent PIN in plaintext (audit C-01)
     return o;
   } catch (_) { return null; }
 }
@@ -103,6 +104,8 @@ function compress(dataUrl, maxW = 800, q = 0.6) {
 
 // ---- APP: push state ----
 let lastPushed = "", pushing = false;
+async function sha256(str){ const b=new TextEncoder().encode(String(str)); const h=await crypto.subtle.digest("SHA-256",b); return [...new Uint8Array(h)].map(x=>x.toString(16).padStart(2,"0")).join(""); }
+
 async function pushIfChanged() {
   if (pushing) return;
   const raw = localStorage.getItem(myKey);
@@ -110,6 +113,7 @@ async function pushIfChanged() {
   let s; try { s = JSON.parse(raw); } catch (_) { return; }
   const payload = stripPngs(s); if (!payload) return;
   payload.updated = Date.now(); payload.app = myApp;
+  try { if (s.pin) payload.pinHash = await sha256(s.pin); } catch (_) {}
   pushing = true;
   try { await ready; await setDoc(stateDoc(myKey), payload); lastPushed = raw; }
   catch (e) { console.warn("[sync] push failed", e); }
