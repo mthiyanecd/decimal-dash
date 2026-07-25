@@ -1271,7 +1271,19 @@ const DEFAULT={name:'',pin:'',session:0,step:0,qi:0,cur:null,log:[],retryQueue:[
   mockScore:null,mockTotal:40,done:[false,false,false,false,false,false,false,false,false],overrides:{},comments:{}};
 let S=load();
 function cleanName(s){ return String(s||'').trim().replace(/[\s\-−–—]+$/,''); }
-function load(){ try{ const j=localStorage.getItem('ddp2'); if(j){ const o=Object.assign(JSON.parse(JSON.stringify(DEFAULT)),JSON.parse(j)); o.name=cleanName(o.name); return o; } }catch(e){}
+const SCHEMA=1;
+function hydrateState(saved){
+  const base=JSON.parse(JSON.stringify(DEFAULT));
+  if(saved&&typeof saved==='object'){
+    for(const k in base){ const dv=base[k], sv=saved[k]; if(sv===undefined) continue;
+      if(Array.isArray(dv)){ if(Array.isArray(sv)){ const out=dv.slice(); for(let i=0;i<sv.length;i++) out[i]=sv[i]; base[k]=out; } }
+      else if(dv&&typeof dv==='object'){ base[k]=Object.assign({},dv,(sv&&typeof sv==='object')?sv:{}); }
+      else base[k]=sv; }
+    if(base.mastery&&DEFAULT.mastery){ for(const sk in DEFAULT.mastery){ let v=Number(base.mastery[sk]); if(!isFinite(v)) v=DEFAULT.mastery[sk]; base.mastery[sk]=Math.max(0,Math.min(100,v)); } }
+  }
+  base.name=cleanName(base.name); base.schemaVersion=SCHEMA; return base;
+}
+function load(){ try{ const j=localStorage.getItem('ddp2'); if(j){ const o=hydrateState(JSON.parse(j)); return o; } }catch(e){}
   return JSON.parse(JSON.stringify(DEFAULT)); }
 function save(){ try{ localStorage.setItem('ddp2',JSON.stringify(S)); }catch(e){
   for(const a of S.log){ if(a.png){a.png=null;a.pngDropped=true;} if(JSON.stringify(S).length<4000000)break; }
