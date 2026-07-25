@@ -165,7 +165,7 @@ const LESSONS={
 <script>
 "use strict";
 /* ===== Explorer Dash · History content ===== */
-let SEQ=0; function newId(t){return t+'-'+(++SEQ)+'-'+Date.now()%100000;}
+let SEQ=0; function newId(t){const r=(self.crypto&&crypto.randomUUID)?crypto.randomUUID().slice(0,8):(Date.now().toString(36)+Math.random().toString(36).slice(2,6));return t+"-"+(++SEQ)+"-"+r;}
 function mc(marks,diff,prompt,correct,wrong,sol,hint){return {input:'choice',marks,diff,prompt,choices:shuffle([correct].concat(wrong)),ans:correct,sol,hints:[hint]};}
 function fl(marks,diff,prompt,ans,alt,sol,hint,ph){return {input:'text',marks,diff,prompt,ans,alt:alt||[],sol,hints:[hint],placeholder:ph||'write here ✏️'};}
 function tf(marks,diff,statement,isTrue,sol,hint){return {input:'choice',marks,diff,prompt:'<b>True</b> or <b>false?</b><br>'+statement,choices:['True','False'],ans:isTrue?'True':'False',sol,hints:[hint]};}
@@ -389,9 +389,14 @@ function hydrateState(saved){
 }
 function load(){ try{ const j=localStorage.getItem('histp2'); if(j){ const o=hydrateState(JSON.parse(j)); return o; } }catch(e){}
   return JSON.parse(JSON.stringify(DEFAULT)); }
-function save(){ try{ localStorage.setItem('histp2',JSON.stringify(S)); }catch(e){
-  for(const a of S.log){ if(a.png){a.png=null;a.pngDropped=true;} if(JSON.stringify(S).length<4000000)break; }
-  try{localStorage.setItem('histp2',JSON.stringify(S));}catch(e2){} } }
+let saveFailed=false;
+function notifySaveFailed(){ try{ let b=document.getElementById('saveWarn'); if(!b){ b=document.createElement('div'); b.id='saveWarn'; b.style.cssText='position:fixed;left:8px;right:8px;bottom:8px;z-index:99999;background:#c23a4b;color:#fff;padding:10px 12px;border-radius:12px;font:14px -apple-system,sans-serif;text-align:center'; document.body.appendChild(b);} b.textContent='⚠️ Progress could not be saved on this device. Please tell Dad.'; }catch(_){} }
+function save(){ try{ localStorage.setItem('histp2',JSON.stringify(S)); saveFailed=false; return true; }
+  catch(e){ const quota=e&&(e.name==='QuotaExceededError'||e.code===22||e.code===1014);
+    if(!quota){ saveFailed=true; console.warn('[save] non-quota failure',e); notifySaveFailed(); return false; }
+    for(const a of S.log){ if(a.png){a.png=null;a.pngDropped=true;} if(JSON.stringify(S).length<4000000)break; }
+    try{ localStorage.setItem('histp2',JSON.stringify(S)); saveFailed=false; return true; }
+    catch(e2){ saveFailed=true; console.warn('[save] still failing after trim',e2); notifySaveFailed(); return false; } } }
 
 /* ============ adaptive ============ */
 function weakOrder(){ return Object.keys(SKILLS).sort((a,b)=>
