@@ -554,7 +554,7 @@ TYPES.col={skill:'s7',gen(fx){
   const kind=(fx&&fx.kind)||pick(['a','a','s','su','sw']);
   let a,b,dpa,dpb,op;
   if(kind==='a'){dpa=2;dpb=2;a=randV(2,ri(3,80));b=randV(2,ri(1,60));op='+';}
-  else if(kind==='s'){dpa=2;dpb=2;a=randV(2,ri(10,90));b=randV(2,ri(1,8));while(b>=a)b=randV(2,ri(1,5));op='-';}
+  else if(kind==='s'){dpa=2;dpb=2;a=Math.max(2,randV(2,ri(10,90)));b=randV(2,ri(1,8));if(b>=a)b=ri(1,a-1);op='-';}  // M-01: a>=2 + direct valid b, no unbounded loop
   else if(kind==='su'){dpa=0;dpb=1;a=ri(30,95);b=ri(101,(a-2)*10);op='-';}  // 82 - 48,5
   else {dpa=1;dpb=3;a=ri(101,999);b=ri(1001,9999);while(b/1000>=a/10)b=ri(1001,Math.max(1002,a*100-500));op='-';}
   const dp=Math.max(dpa,dpb);
