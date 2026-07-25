@@ -598,6 +598,7 @@ function renderLesson(st){
 
 /* ============ quiz engine ============ */
 let T0=0, hintsUsed=0, attemptNo=1, selVal=null, drawRevealed=false;
+let clockTimer=null, advTimer=null, qLock=false;  // owned timers + one-shot submit lock (H-04)
 function startQuiz(st){
   if(!S.cur){
     let items;
@@ -627,7 +628,7 @@ function choiceBtn(c,i){
 function renderQuestion(){
   const it=curItem();
   if(!it){ finishQuiz(); return; }
-  T0=Date.now(); hintsUsed=0; attemptNo=1; selVal=null; drawRevealed=false;
+  T0=Date.now(); hintsUsed=0; attemptNo=1; selVal=null; drawRevealed=false; clearTimeout(clockTimer); clearTimeout(advTimer); qLock=false;
   const mode=S.cur.mode, n=S.cur.items.length;
   const label={warm:'Warm up',diag:'Detective mission',practice:'Practice',trap:'Trap Spotter',
     mock:'PRACTICE EXAM',retry:'Fix it',corrections:'Fix my slips',confidence:'Victory lap'}[mode]||'Practice';
@@ -662,19 +663,19 @@ function selChoice(btn){
   const i=+btn.getAttribute('data-i');
   selVal=i>=0?String(curItem().choices[i]):btn.getAttribute('data-v');
   document.querySelectorAll('.choice').forEach(b=>b.classList.remove('sel')); btn.classList.add('sel'); }
-function tickClock(){
+function tickClock(){ clearTimeout(clockTimer);
   const el=$('#clock'); if(!el||!S.cur||!S.cur.deadline) return;
   const left=Math.max(0,S.cur.deadline-Date.now());
   const m=Math.floor(left/60000),s=Math.floor(left%60000/1000);
   el.textContent=`⏱ ${m}:${String(s).padStart(2,'0')}`;
   if(left<5*60*1000) el.classList.add('low');
   if(left<=0){ finishQuiz(); return; }
-  setTimeout(tickClock,1000);
+  clockTimer=setTimeout(tickClock,1000);
 }
 function getUserAnswer(){ const it=curItem();
   if(it.input==='text'){ const el=$('#ansIn'); return el?el.value:''; }
   return selVal; }
-function selfMark(ok){
+function selfMark(ok){ if(qLock) return; qLock=true;
   const it=curItem();
   recordAttempt(it,'(drawing)',ok,true);
   S.log[S.log.length-1].selfMarked=true;
@@ -683,9 +684,11 @@ function selfMark(ok){
   showFB(ok?'good':'hint',ok?`Beautiful drawing! 🌟${won.length?'<br>🏅 New badge: <b>'+won.join(', ')+'</b>!':''}`:
     'Good try! We\'ll practise one like this again. 💪');
   disableCheck();
-  setTimeout(()=>{ if(!S.cur) return; S.qi++;save();renderQuestion(); },1200);
+  scheduleAdvance(1200);
 }
-function doCheck(){
+function qToken(){ return S.cur?(S.session+":"+S.qi+":"+S.cur.mode):null; }
+function scheduleAdvance(delay){ clearTimeout(advTimer); const tok=qToken(); advTimer=setTimeout(()=>{ if(!S.cur||qToken()!==tok) return; S.qi++; save(); renderQuestion(); }, delay); }
+function doCheck(){ if(qLock) return;
   const it=curItem();
   if(it.input==='draw'){
     if(!drawRevealed){ drawRevealed=true;
@@ -701,11 +704,11 @@ function doCheck(){
   if(user==null||String(user).trim()===''){ showFB('hint','✏️ Write your answer first … you can do it!'); return; }
   const ok=checkAnswer(it,user);
   const mode=S.cur.mode;
-  if(mode==='diag'||mode==='mock'){ recordAttempt(it,user,ok,true);
+  if(mode==='diag'||mode==='mock'){ qLock=true; recordAttempt(it,user,ok,true);
     showFB('good',mode==='diag'?'Answer locked in! 🔒':'Saved ✓ … next one!');
-    disableCheck(); setTimeout(()=>{ if(!S.cur) return; S.qi++;save();renderQuestion(); },700); return; }
+    disableCheck(); scheduleAdvance(700); return; }
   if(ok){
-    const first=(attemptNo===1);
+    qLock=true; const first=(attemptNo===1);
     recordAttempt(it,user,true,first);
     if(first&&!hintsUsed){S.streak++;S.best=Math.max(S.best,S.streak);S.stars++;}
     else S.streak=0;
@@ -713,12 +716,12 @@ function doCheck(){
     const cheers=['Brilliant! 🌟','Yes! Nailed it! 🎯','Superstar! ⭐','You got it! 🙌','Perfect! 💯','Sharp thinking! 🧠'];
     showFB('good',`${pick(cheers)}${won.length?'<br>🏅 New badge: <b>'+won.join(', ')+'</b>!':''}`);
     disableCheck();
-    setTimeout(()=>{ if(!S.cur) return; S.qi++;save();renderQuestion(); },1100);
+    scheduleAdvance(1100);
   } else {
     if(attemptNo===1){ attemptNo=2; hintsUsed++;
       showFB('hint',`🤔 Not quite … here's a hint:<br><b>${it.hints[0]}</b><br><span class="small">Fix your working and try again!</span>`);
     } else {
-      recordAttempt(it,user,false,false); S.streak=0;
+      qLock=true; recordAttempt(it,user,false,false); S.streak=0;
       S.retryQueue.push({type:it.type,reason:'auto'});
       showFB('bad',`Almost! The answer is <b>${String(it.ans).startsWith('<svg')?it.ans:esc(it.ans)}</b>.`);
       $('#fb').insertAdjacentHTML('beforeend',`<div class="sol"><b>💡 How it works:</b><br>${it.sol}</div>
@@ -738,7 +741,7 @@ function recordAttempt(it,user,correct,firstTry){
     png,ts:Date.now()});
   save();
 }
-function finishQuiz(){
+function finishQuiz(){ clearTimeout(clockTimer); clearTimeout(advTimer);
   const mode=S.cur?S.cur.mode:null;
   if(mode==='mock'){ const start=(S.cur&&S.cur.mockStart)||0; S.mockScore=Math.min(S.mockTotal,
     S.log.filter(a=>a.mode==='mock'&&a.correct&&(a.ts||0)>=start).reduce((t,a)=>t+a.maxMarks,0)); }  // H-04: only this mock run counts
