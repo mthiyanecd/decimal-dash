@@ -1271,9 +1271,9 @@ const DEFAULT={name:'',pin:'',session:0,step:0,qi:0,cur:null,log:[],retryQueue:[
   mastery:{s1:50,s2:50,s3:50,s4:50,s5:50,s6:50,s7:50,s8:50},
   streak:0,best:0,badges:[],stars:0,stretch:[false,false,false,false,false,false,false,false,false],
   mockScore:null,mockTotal:40,done:[false,false,false,false,false,false,false,false,false],overrides:{},comments:{}};
+const SCHEMA=1;
 let S=load();
 function cleanName(s){ return String(s||'').trim().replace(/[\s\-−–—]+$/,''); }
-const SCHEMA=1;
 function hydrateState(saved){
   const base=JSON.parse(JSON.stringify(DEFAULT));
   if(saved&&typeof saved==='object'){
