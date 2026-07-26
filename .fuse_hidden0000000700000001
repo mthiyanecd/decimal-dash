@@ -1076,7 +1076,7 @@ function finishQuiz(){ clearTimeout(clockTimer); clearTimeout(advTimer);
 }
 function nextStepMaybeStretch(){
   const mid=Math.floor(SESSIONS[S.session].steps.length/2);
-  if(!S.stretch[S.session]&&S.step>=mid){
+  if(!S.stretch[S.session]&&S.step===mid){
     S.stretch[S.session]=true; S.step++; save();
     render(`${header(sessionPct())}<div class="card center"><div class="emoji-big">🤸</div>
       <h2>Quick stretch?</h2><p class="big">You're doing great! Stand up, shake your arms, take three deep breaths … then come back.</p>

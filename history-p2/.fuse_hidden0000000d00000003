@@ -794,7 +794,7 @@ function finishQuiz(){ clearTimeout(clockTimer); clearTimeout(advTimer);
     S.log.filter(a=>a.mode==='mock'&&a.correct&&(a.ts||0)>=start).reduce((t,a)=>t+a.maxMarks,0)); }  // H-04: only this mock run counts
   S.cur=null;
   const mid=Math.floor(SESSIONS[S.session].steps.length/2);
-  if(!S.stretch[S.session]&&S.step>=mid){
+  if(!S.stretch[S.session]&&S.step===mid){
     S.stretch[S.session]=true; S.step++; save();
     render(`${header(sessionPct())}<div class="card center"><div class="emoji-big">🤸</div>
       <h2>Quick stretch?</h2><p class="big">You're doing great! Stand up, shake your arms, take three deep breaths … then come back.</p>
