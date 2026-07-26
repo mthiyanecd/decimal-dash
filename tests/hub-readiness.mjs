@@ -21,7 +21,10 @@ assert.ok(/bootTries/.test(h) && /Retry/.test(h), "bounded startup wait with a R
 
 // Submissions "last session received" view + transactional reward + pending review.
 assert.ok(/onSubmissions/.test(h) && /Last session received/.test(h), "submissions receipt view required");
-assert.ok(/redeemReward/.test(h), "reward redemption must go through the transaction API");
+assert.ok(/requestReward/.test(h), "child reward pick must go through the request-only API (no direct vault write)");
+assert.ok(!/updateVault\(\{usedKeys/.test(h.replace(/\s/g, "")), "child path must not increment the vault directly");
+assert.ok(/approveRedemption/.test(h) && /rejectRedemption/.test(h), "parent corner must approve/reject redemptions");
+assert.ok(/Sent to Dad to approve/.test(h), "child sees request-sent copy");
 assert.ok(/rewardpick.*disabled|disabled=true/.test(h.replace(/\n/g, " ")), "reward buttons disabled while pending");
 assert.ok(/pendingReviews/.test(h) && /waiting for your review/.test(h), "hub counts + highlights pending Pencil reviews");
 console.log("Hub readiness and error-state contract passed");

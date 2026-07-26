@@ -1,4 +1,7 @@
-// H-01: reward redemption + key award are atomic, idempotent, balance-checked.
+// H-01: key awards are atomic + idempotent; reward redemption is now a
+// request/approve split — the child request writes NOTHING to the vault, and
+// only the parent approval spends a Key (see reward-approval.mjs for the full
+// approval-side contract).
 import assert from "node:assert";
 import { loadSync } from "./helpers/load-sync-runtime.mjs";
 
@@ -11,20 +14,15 @@ await sync.awardKeys("mock done", 3, "req-A"); // duplicate must be a no-op
 assert.equal(fs.store.get(VAULT).examKeys, 3, "idempotent award: duplicate requestId not double-counted");
 assert.ok([...fs.store.keys()].some(p => p.startsWith(VAULT + "/awards/")), "award recorded in append-only subcollection");
 
-// Redeem with balance available.
-const r1 = await sync.redeemReward({ requestId: "red-1", rewardId: "ice", rewardDesc: "Ice cream", level: 1 });
-assert.equal(r1.status, "ok");
-assert.equal(fs.store.get(VAULT).usedKeys, 1, "one key consumed");
-// Duplicate redemption is idempotent (no second key consumed).
-const r2 = await sync.redeemReward({ requestId: "red-1", rewardId: "ice", rewardDesc: "Ice cream", level: 1 });
-assert.equal(r2.status, "duplicate");
-assert.equal(fs.store.get(VAULT).usedKeys, 1, "duplicate redemption did not consume another key");
+// A child reward request creates a pending redemption but NEVER spends a Key.
+const r1 = await sync.requestReward({ requestId: "red-1", rewardId: "ice", rewardDesc: "Ice cream", level: 1 });
+assert.equal(r1.status, "pending");
+assert.equal(fs.store.get(VAULT).usedKeys, undefined, "child request must not touch usedKeys");
+assert.equal(fs.store.get("families/zimmy/redemptions/red-1").status, "pending");
 
-// Balance exhausted => rejected.
-await sync.redeemReward({ requestId: "red-2", rewardId: "x", rewardDesc: "x" }); // uses key 2
-await sync.redeemReward({ requestId: "red-3", rewardId: "x", rewardDesc: "x" }); // uses key 3
-let threw = false;
-try { await sync.redeemReward({ requestId: "red-4", rewardId: "x", rewardDesc: "x" }); }
-catch (e) { threw = true; assert.match(String(e.message), /insufficient/); }
-assert.ok(threw, "redemption beyond balance must be rejected in-transaction");
+// The back-compat redeemReward alias is request-only (no vault write).
+const r2 = await sync.redeemReward({ requestId: "red-1", rewardId: "ice", rewardDesc: "Ice cream", level: 1 });
+assert.equal(r2.status, "duplicate", "alias stays idempotent and request-only");
+assert.equal(fs.store.get(VAULT).usedKeys, undefined, "alias never spends a Key");
+
 console.log("reward transaction contract passed");
