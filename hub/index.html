@@ -391,20 +391,45 @@ function renderCatalogue(){
   el.querySelectorAll('[data-delc]').forEach(b=>b.onclick=()=>{ if(confirm('Remove this reward?')) sync.removeCatalogueItem(b.getAttribute('data-delc')); });
 }
 
+// Parent-only redemption review. Rendered with DOM APIs + textContent so a
+// malicious rewardDesc/id in a redemption doc can never inject markup. Approve
+// spends one Key transactionally (parent side); Reject never touches the vault.
 function renderRedemptions(){
-  const el=$('redList'); const list=(sync.getRedemptions()||[]).slice().sort((a,b)=>(b.ts||0)-(a.ts||0));
-  if(!list.length){ el.innerHTML='<div class="muted">No chests opened yet.</div>'; return; }
-  el.innerHTML=list.map(r=>{
+  const el=$('redList'); el.textContent='';
+  const list=(sync.getRedemptions()||[]).slice().sort((a,b)=>(b.ts||0)-(a.ts||0));
+  if(!list.length){ const m=document.createElement('div'); m.className='muted'; m.textContent='No reward requests yet.'; el.appendChild(m); return; }
+  const badgeFor=st=>{
+    const s=document.createElement('span');
+    if(st==='pending'){ s.className='mini n'; s.textContent='pending'; }
+    else if(st==='approved'){ s.className='mini g'; s.textContent='approved'; }
+    else if(st==='fulfilled'){ s.className='mini g'; s.textContent='given'; }
+    else { s.className='mini r'; s.textContent='rejected'; }
+    return s;
+  };
+  const btn=(cls,label,fn)=>{ const b=document.createElement('button'); b.className='mini '+cls; b.textContent=label; b.onclick=fn; return b; };
+  const doAction=async(b,id,action,busy)=>{
+    b.disabled=true; b.textContent=busy;
+    try{ await action(); }
+    catch(e){ b.disabled=false; const msg=/insufficient/i.test(String(e&&e.message))?'no Key left':'try again'; b.textContent=msg; }
+    // Success re-renders via the onRedemptions/onVault listeners.
+  };
+  list.forEach(r=>{
     const st=r.status||'pending';
-    const badge= st==='pending'?'<span class="mini n">pending</span>': st==='approved'?'<span class="mini g">approved</span>': st==='fulfilled'?'<span class="mini g">given ✓</span>':'<span class="mini r">rejected</span>';
-    let btns='';
-    if(st==='pending') btns='<button class="mini g" data-appr="'+r.id+'">approve</button> <button class="mini r" data-rej="'+r.id+'">reject</button>';
-    else if(st==='approved') btns='<button class="mini g" data-ful="'+r.id+'">mark given</button>';
-    return '<div class="row"><span class="lvltag">'+esc(r.level)+'</span><div class="tt">'+esc(r.rewardDesc)+' '+badge+'</div>'+btns+'</div>';
-  }).join('');
-  el.querySelectorAll('[data-appr]').forEach(b=>b.onclick=()=>sync.setRedemption(b.getAttribute('data-appr'),{status:'approved',approvedTs:Date.now()}));
-  el.querySelectorAll('[data-rej]').forEach(b=>b.onclick=()=>sync.setRedemption(b.getAttribute('data-rej'),{status:'rejected'}));
-  el.querySelectorAll('[data-ful]').forEach(b=>b.onclick=()=>sync.setRedemption(b.getAttribute('data-ful'),{status:'fulfilled',fulfilledTs:Date.now()}));
+    const row=document.createElement('div'); row.className='row';
+    const lvl=document.createElement('span'); lvl.className='lvltag'; lvl.textContent=r.level!=null?String(r.level):'';
+    const tt=document.createElement('div'); tt.className='tt';
+    tt.textContent=(r.rewardDesc||'Reward')+' ';
+    tt.appendChild(badgeFor(st));
+    row.appendChild(lvl); row.appendChild(tt);
+    if(st==='pending'){
+      row.appendChild(btn('g','approve',function(){ return doAction(this,r.id,()=>sync.approveRedemption({requestId:r.id}),'approving…'); }));
+      row.appendChild(document.createTextNode(' '));
+      row.appendChild(btn('r','reject',function(){ return doAction(this,r.id,()=>sync.rejectRedemption({requestId:r.id}),'rejecting…'); }));
+    } else if(st==='approved'){
+      row.appendChild(btn('g','mark given',function(){ return doAction(this,r.id,()=>sync.setRedemption(r.id,{status:'fulfilled',fulfilledTs:Date.now()}),'…'); }));
+    }
+    el.appendChild(row);
+  });
 }
 
 // PIN gate
@@ -463,19 +488,12 @@ async function chooseReward(id,desc,level){
   document.querySelectorAll('.rewardpick').forEach(b=>b.disabled=true);   // disable while pending (H-01)
   const reqId=(self.crypto&&crypto.randomUUID?crypto.randomUUID():'red-'+Date.now()+'-'+Math.random().toString(36).slice(2));
   try{
-    if(typeof sync.redeemReward==='function'){
-      // Atomic + idempotent: balance check, redemption + counters in one transaction.
-      await sync.redeemReward({requestId:reqId,rewardId:id,rewardDesc:desc,level});
-    } else {
-      const v=sync.getVault()||{};
-      await sync.addRedemption({level,rewardId:id,rewardDesc:desc,status:'pending'});
-      await sync.updateVault({usedKeys:(v.usedKeys||0)+1, openedChests:(v.openedChests||0)+1});
-    }
-    showChest('<h2>🎉 Chest opened!</h2><div class="muted">You chose <b>'+esc(desc)+'</b>. Dad will approve it soon.</div><button class="btn" id="chestOk">Yay!</button>');
+    // Child-safe: request only. The Key is spent when Dad approves, not here.
+    await sync.requestReward({requestId:reqId,rewardId:id,rewardDesc:desc,level});
+    showChest('<h2>🎁 Reward requested!</h2><div class="muted">You chose <b>'+esc(desc)+'</b>. Sent to Dad to approve.</div><button class="btn" id="chestOk">Okay</button>');
     $('chestOk').onclick=hideChest;
   }catch(e){
-    const msg=/insufficient/i.test(String(e&&e.message))?'You do not have a Key to open this chest yet.':'Could not open it just now. Try again in a moment.';
-    showChest('<h2>Hmm…</h2><div class="muted">'+msg+'</div><button class="btn" id="chestOk">OK</button>'); $('chestOk').onclick=hideChest;
+    showChest('<h2>Hmm…</h2><div class="muted">Could not send it just now. Try again in a moment.</div><button class="btn" id="chestOk">OK</button>'); $('chestOk').onclick=hideChest;
     document.querySelectorAll('.rewardpick').forEach(b=>b.disabled=false);
   } finally { redeeming=false; }
 }
