@@ -53,6 +53,10 @@ try {
 const auth = getAuth(fb);
 const db = getFirestore(fb);
 
+// Pencil-grading model. Current Firebase AI Logic stable Flash model is
+// gemini-3.6-flash; overridable via window.StudyDashConfig.aiModel.
+const AI_MODEL = (typeof window !== "undefined" && window.StudyDashConfig && window.StudyDashConfig.aiModel) || "gemini-3.6-flash";
+
 // ---- Connection state machine ----
 // loading | connected | syncing | offline | permission-denied | auth-failed | error
 let connStatus = "loading";
@@ -284,7 +288,7 @@ function pencilModel() {
     }
   });
   _model = getGenerativeModel(ai, {
-    model: "gemini-2.5-flash",
+    model: AI_MODEL,
     generationConfig: { responseMimeType: "application/json", responseSchema }
   });
   return _model;
@@ -309,7 +313,7 @@ async function gradePencil(opts) {
   const fail = (reason) => ({
     correct: null, needsParentReview: true, verdict: "unreadable", score: 0,
     maxMarks: Number(maxMarks) || 0, confidence: 0, humanReview: "required",
-    transcription: "", feedback: "", criteria: [], error: reason, model: "gemini-2.5-flash"
+    transcription: "", feedback: "", criteria: [], error: reason, model: AI_MODEL
   });
   if (!validImageDataUrl(image)) return fail("invalid-image");
   if (!(Number(maxMarks) > 0)) return fail("invalid-maxMarks");
@@ -357,7 +361,7 @@ async function gradePencil(opts) {
     transcription: String(data.transcription || ""),
     feedback: String(data.feedback || ""),
     criteria: Array.isArray(data.criteria) ? data.criteria : [],
-    model: "gemini-2.5-flash", gradedAt: Date.now()
+    model: AI_MODEL, gradedAt: Date.now()
   };
   const auto = verdict === "correct" && conf >= threshold && humanReview === "not_needed";
   record.correct = auto ? true : null;
