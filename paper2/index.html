@@ -1270,7 +1270,8 @@ function ep4d(){ return [makeItem('convMC'),makeItem('capCmp'),makeItem('tons',{
 const DEFAULT={name:'',pin:'',session:0,step:0,qi:0,cur:null,log:[],retryQueue:[],
   mastery:{s1:50,s2:50,s3:50,s4:50,s5:50,s6:50,s7:50,s8:50},
   streak:0,best:0,badges:[],stars:0,stretch:[false,false,false,false,false,false,false,false,false],
-  mockScore:null,mockTotal:40,done:[false,false,false,false,false,false,false,false,false],overrides:{},comments:{}};
+  mockScore:null,mockTotal:40,done:[false,false,false,false,false,false,false,false,false],overrides:{},comments:{},
+  sessionSubmissions:{},schemaVersion:1};
 const SCHEMA=1;
 let S=load();
 function cleanName(s){ return String(s||'').trim().replace(/[\s\-−–—]+$/,''); }
@@ -1546,7 +1547,9 @@ function renderLesson(st){
 
 /* ============ quiz engine ============ */
 let T0=0, hintsUsed=0, attemptNo=1, selVal=null, drawRevealed=false;
-let clockTimer=null, advTimer=null, qLock=false;  // owned timers + one-shot submit lock (H-04)
+let clockTimer=null, advTimer=null, qLock=false, awaitChange=null;  // owned timers + one-shot submit lock (H-04)
+// Release the first-wrong lock once the learner actually changes their answer.
+function maybeUnlock(v){ if(awaitChange!=null && String(v)!==awaitChange){ qLock=false; awaitChange=null; } }
 function startQuiz(st){
   if(!S.cur){
     let items;
@@ -1576,7 +1579,7 @@ function choiceBtn(c,i){
 function renderQuestion(){
   const it=curItem();
   if(!it){ finishQuiz(); return; }
-  T0=Date.now(); hintsUsed=0; attemptNo=1; selVal=null; drawRevealed=false; clearTimeout(clockTimer); clearTimeout(advTimer); qLock=false;
+  T0=Date.now(); hintsUsed=0; attemptNo=1; selVal=null; drawRevealed=false; clearTimeout(clockTimer); clearTimeout(advTimer); qLock=false; awaitChange=null;
   const mode=S.cur.mode, n=S.cur.items.length;
   const label={warm:'Warm up',diag:'Detective mission',practice:'Practice',trap:'Trap Spotter',
     mock:'PRACTICE EXAM',retry:'Fix it',corrections:'Fix my slips',confidence:'Victory lap'}[mode]||'Practice';
@@ -1605,11 +1608,12 @@ function renderQuestion(){
    </div>`);
   initCanvas();
   if(mode==='mock') tickClock();
-  const ai=$('#ansIn'); if(ai){ai.addEventListener('keydown',e=>{if(e.key==='Enter')doCheck();});}
+  const ai=$('#ansIn'); if(ai){ai.addEventListener('input',e=>maybeUnlock(e.target.value)); ai.addEventListener('keydown',e=>{if(e.key==='Enter')doCheck();});}
 }
 function selChoice(btn){
   const i=+btn.getAttribute('data-i');
   selVal=i>=0?String(curItem().choices[i]):btn.getAttribute('data-v');
+  maybeUnlock(selVal);
   document.querySelectorAll('.choice').forEach(b=>b.classList.remove('sel')); btn.classList.add('sel'); }
 function tickClock(){ clearTimeout(clockTimer);
   const el=$('#clock'); if(!el||!S.cur||!S.cur.deadline) return;
@@ -1623,30 +1627,57 @@ function tickClock(){ clearTimeout(clockTimer);
 function getUserAnswer(){ const it=curItem();
   if(it.input==='text'){ const el=$('#ansIn'); return el?el.value:''; }
   return selVal; }
-function selfMark(ok){ if(qLock) return; qLock=true;
-  const it=curItem();
-  recordAttempt(it,'(drawing)',ok,true);
-  S.log[S.log.length-1].selfMarked=true;
-  if(ok){S.streak++;S.best=Math.max(S.best,S.streak);S.stars++;}else{S.streak=0;S.retryQueue.push({type:it.type,reason:'auto'});}
-  const won=checkBadges();
-  showFB(ok?'good':'hint',ok?`Beautiful drawing! 🌟${won.length?'<br>🏅 New badge: <b>'+won.join(', ')+'</b>!':''}`:
-    'Good try! We\'ll practise one like this again. 💪');
-  disableCheck();
-  scheduleAdvance(1200);
+// F-03: automated Pencil grading (no learner self-marking). Locks the question,
+// captures the real canvas JPEG, grades with a per-question rubric, and only
+// auto-marks correct when the model is confident and no human review is needed.
+function pencilRubric(it){
+  const half=Math.max(1,Math.floor(it.marks/2));
+  return {maxMarks:it.marks,expected:String(it.ans),model:it.model||it.sol||'',
+    criteria:[
+      {label:'Correct concept and method',marks:half,misconceptions:'reversed shape, wrong property'},
+      {label:'Accurate result with correct labels and units',marks:it.marks-half,equivalents:'accept equivalent forms',partialCredit:true}
+    ]};
+}
+async function gradePencilAnswer(it){
+  const png=exportCanvas();
+  showFB('hint','🖊️ Saving your work for marking…');
+  const sync=window.StudyDashSync; let g=null;
+  if(sync&&typeof sync.gradePencil==='function'){
+    try{ g=await sync.gradePencil({image:png,prompt:String(it.prompt).replace(/<[^>]*>/g,' '),
+      expected:String(it.ans),maxMarks:it.marks,rubric:pencilRubric(it),confidenceThreshold:0.85}); }
+    catch(_){ g=null; }
+  }
+  recordPencilAttempt(it,png,g);
+  if(g&&g.correct===true){
+    S.streak++;S.best=Math.max(S.best,S.streak);S.stars++;
+    const won=checkBadges();
+    showFB('good',`Beautiful work! 🌟 Marked correct.${won.length?'<br>🏅 New badge: <b>'+won.join(', ')+'</b>!':''}`);
+  } else {
+    showFB('hint','Saved for Dad to check ✏️ … your marks update once he reviews it.');
+  }
+  save();
+  scheduleAdvance(1400);
+}
+function recordPencilAttempt(it,png,g){
+  const correct=g&&g.correct===true?true:null; // pending review unless confidently correct
+  if(correct===true) updateMastery(it.skill,true,true,hintsUsed);
+  S.log.push({id:it.id,type:it.type,skill:it.skill,mode:S.cur.mode,session:S.session,
+    prompt:it.prompt,ans:it.ans,user:'(drawing)',correct,firstTry:true,hints:hintsUsed,
+    marks:correct===true?it.marks:0,maxMarks:it.marks,timeS:Math.round((Date.now()-T0)/1000),
+    png,ts:Date.now(),pencil:true,needsParentReview:correct!==true,
+    grading:g?{verdict:g.verdict,score:g.score,confidence:g.confidence,humanReview:g.humanReview,
+      transcription:g.transcription,model:g.model,error:g.error||null}:{error:'unavailable'}});
+  save();
 }
 function qToken(){ return S.cur?(S.session+":"+S.qi+":"+S.cur.mode):null; }
 function scheduleAdvance(delay){ clearTimeout(advTimer); const tok=qToken(); advTimer=setTimeout(()=>{ if(!S.cur||qToken()!==tok) return; S.qi++; save(); renderQuestion(); }, delay); }
 function doCheck(){ if(qLock) return;
   const it=curItem();
   if(it.input==='draw'){
-    if(!drawRevealed){ drawRevealed=true;
-      if(!canvasDirty()){ showFB('hint','✏️ Draw it first with your Pencil … you can do it!'); drawRevealed=false; return; }
-      $('#fb').innerHTML=`<div class="sol"><b>💡 Here is a model answer:</b><br>${it.model}<br>${it.sol}<br>
-        <b>Compare with yours … be honest!</b></div>
-        <button class="btn btn-teal" onclick="selfMark(true)">Mine matches ✓</button>
-        <button class="btn btn-soft" onclick="selfMark(false)">Not quite yet</button>`;
-      $('#checkBtn').style.display='none';
-      return; }
+    if(qLock) return;
+    if(!canvasDirty()){ showFB('hint','✏️ Draw it first with your Pencil … you can do it!'); return; }
+    qLock=true; disableCheck(); $('#checkBtn').style.display='none';
+    gradePencilAnswer(it);
     return; }
   const user=getUserAnswer();
   if(user==null||String(user).trim()===''){ showFB('hint','✏️ Write your answer first … you can do it!'); return; }
@@ -1667,6 +1698,9 @@ function doCheck(){ if(qLock) return;
     scheduleAdvance(1100);
   } else {
     if(attemptNo===1){ attemptNo=2; hintsUsed++;
+      // Lock until the answer/choice actually changes, so rapid re-taps/Enter
+      // cannot burn the second attempt on the same value (audit H-04 residual).
+      qLock=true; awaitChange=String(user);
       showFB('hint',`🤔 Not quite … here's a hint:<br><b>${it.hints[0]}</b><br><span class="small">Fix your working and try again!</span>`);
     } else {
       qLock=true; recordAttempt(it,user,false,false); S.streak=0;
@@ -1758,7 +1792,7 @@ function summaryText(n){
   const w=weakOrder();
   let t=`Shape Dash P2 — ${S.name}, Session ${n+1} done! ✅ ${ok}/${at.length} correct`;
   if(n===4&&S.mockScore!=null)t+=` · Mock exam: ${S.mockScore}/${S.mockTotal}`;
-  t+=`. Strongest: ${SKILLS[w[7]].name}. Working on: ${SKILLS[w[0]].name}.`;
+  t+=`. Strongest: ${SKILLS[w[w.length-1]].name}. Working on: ${SKILLS[w[0]].name}.`;
   return t; }
 function buildPackage(n){
   return JSON.stringify({app:'ShapeDashP2',version:1,learner:S.name,session:n+1,
@@ -1773,21 +1807,38 @@ function renderSubmit(){
     <h1>Session ${n+1} finished!</h1>
     <p class="big">You answered <b>${ok} of ${at.length}</b> correctly${n===4&&S.mockScore!=null?` and scored <b>${S.mockScore}/${S.mockTotal}</b> in your practice exam`:''}. ${ok/Math.max(1,at.length)>=0.75?'Amazing work! 🌟':'Great effort! 💪'}</p>
     ${won.length?`<div class="badges">${won.map(b=>`<span class="badge won">${b}</span>`).join('')}</div>`:''}
-    <p class="sub">Now send your work to Dad with one tap:</p>
-    <button class="btn btn-main" onclick="doSubmit(${n})">📤 Submit my work</button>
-    <div id="afterSubmit"></div></div>`);
+    <p class="sub">Your work saves to Dad automatically. All done here:</p>
+    <div id="syncStatus" class="feedback">Saved on iPad · starting sync…</div>
+    <button class="btn btn-main" onclick="submitCurrentSession(${n})">🔄 Sync again</button>
+    <a class="btn btn-teal linkbtn" href="sms:&body=${encodeURIComponent(summaryText(n))}">💬 Tell Dad on iMessage</a>
+    <button class="btn btn-main" onclick="closeSession(${n})">${final?'Finish! 🌟':'Done for now! 👋'}</button>
+    <button class="btn btn-soft" onclick="exportSession(${n})">⬇️ Export backup (.json)</button></div>`);
+  submitCurrentSession(n);
 }
-function doSubmit(n){
+function sessionSubmitRec(n){
+  if(!S.sessionSubmissions||typeof S.sessionSubmissions!=='object') S.sessionSubmissions={};
+  let rec=S.sessionSubmissions[n];
+  if(!rec){ rec={id:(self.crypto&&crypto.randomUUID?crypto.randomUUID():'sub-'+Date.now()+'-'+Math.random().toString(36).slice(2)),created:Date.now(),status:'pending'}; S.sessionSubmissions[n]=rec; save(); }
+  return rec;
+}
+async function submitCurrentSession(n){
+  const rec=sessionSubmitRec(n); const el=$('#syncStatus'); const sync=window.StudyDashSync;
+  const at=sessionAttempts(n);
+  if(!sync||typeof sync.submitSession!=='function'){ if(el)el.textContent='Saved on this iPad ✓ (open online to sync to Dad)'; return; }
+  if(el)el.textContent='Saved on iPad · Syncing…';
+  try{
+    const env={session:n,learner:S.name,attempts:at.length,correct:at.filter(a=>a.correct===true).length,summary:summaryText(n)};
+    const r=await sync.submitSession(rec.id,env);
+    rec.status=r.status; save();
+    if(el)el.textContent=r.status==='synced'?'Synced with Dad ✓':'Saved offline · will retry automatically';
+  }catch(e){ if(el)el.textContent='Saved offline · will retry automatically'; }
+}
+function exportSession(n){
   const blob=new Blob([buildPackage(n)],{type:'application/json'});
-  const a=document.createElement('a');
-  a.href=URL.createObjectURL(blob);
-  a.download=`ShapeDash_P2_Session${n+1}_${new Date().toISOString().slice(0,10)}.json`;
+  const url=URL.createObjectURL(blob); const a=document.createElement('a');
+  a.href=url; a.download=`ShapeDash_P2_Session${n+1}_${new Date().toISOString().slice(0,10)}.json`;
   document.body.appendChild(a); a.click(); a.remove();
-  const txt=encodeURIComponent(summaryText(n));
-  $('#afterSubmit').innerHTML=`
-    <div class="feedback fb-good">Your work has been saved and sent to your iCloud folder ✓</div>
-    <a class="btn btn-teal linkbtn" href="sms:&body=${txt}">💬 Tell Dad on iMessage</a>
-    <button class="btn btn-main" onclick="closeSession(${n})">${(n===4||n===8)?'Finish! 🌟':'Done for now! 👋'}</button>`;
+  setTimeout(()=>URL.revokeObjectURL(url),4000);
 }
 function closeSession(n){
   S.done[n]=true; checkBadges(); S.session=n+1; S.step=0; S.cur=null; S.qi=0; save(); go();
@@ -1904,26 +1955,50 @@ function makeCode(skill){
   $('#codeOut').innerHTML=`<div class="feedback fb-good">Send her this code: <b>DD-${ts.join('.')}</b><br>
     <a class="btn btn-teal linkbtn" style="margin-top:8px" href="sms:&body=${encodeURIComponent('Here is a bonus round for you! 🎁 Open Shape Dash, tap "code from Dad" and type: DD-'+ts.join('.'))}">Send by iMessage</a></div>`;
 }
+// Strict per-field import validation + in-package dedup (audit M-03/C-02).
+const IMPORT_ID=/^[A-Za-z0-9._:-]{1,80}$/;
+function normAttempt(raw){
+  if(!raw||typeof raw!=='object')throw 0;
+  if(!IMPORT_ID.test(String(raw.id)))throw 0;
+  if(!TYPES[raw.type])throw 0;
+  if(!SKILLS[raw.skill])throw 0;
+  const c=raw.correct===true?true:(raw.correct===false?false:null);
+  return {id:String(raw.id),type:raw.type,skill:raw.skill,mode:String(raw.mode||'').slice(0,24),
+    session:Number.isInteger(raw.session)?raw.session:0,
+    user:String(raw.user==null?'':raw.user).slice(0,200),correct:c,
+    marks:Number.isFinite(raw.marks)?raw.marks:0,maxMarks:Number.isFinite(raw.maxMarks)?raw.maxMarks:0,
+    ts:Number.isFinite(raw.ts)?raw.ts:Date.now(),
+    hints:Number.isFinite(raw.hints)?raw.hints:0,timeS:Number.isFinite(raw.timeS)?raw.timeS:0,
+    ans:String(raw.ans==null?'':raw.ans).slice(0,200),
+    prompt:esc(String(raw.promptText||raw.prompt||'').replace(/<[^>]*>/g,' ').slice(0,400)),
+    pencil:raw.pencil===true,needsParentReview:raw.needsParentReview===true,imported:true};
+}
 function importFile(){
   const f=$('#impF').files[0]; if(!f){alert('Choose a file first.');return;}
+  if(f.size>2000000){$('#ioMsg').innerHTML=`<div class="feedback fb-bad">That file is too large to import.</div>`;return;}
   const r=new FileReader();
   r.onload=()=>{ try{
     const p=JSON.parse(r.result);
-    if(p.app!=='ShapeDashP2')throw 0;
-    const have=new Set(S.log.map(a=>a.id)); let n=0;
-    for(const a of (p.attempts||[])){ if(!have.has(a.id)){S.log.push(a);n++;} }
-    if(p.mastery)S.mastery=p.mastery;
-    if(p.mockScore!=null)S.mockScore=p.mockScore;
+    if(p&&p.kind==='full-backup'&&p.app==='ShapeDashP2'&&p.state){
+      if(!confirm('Restore a full backup? This replaces ALL current progress on this iPad.'))return;
+      localStorage.setItem('ddp2',JSON.stringify(p.state)); location.reload(); return;
+    }
+    if(!p||p.app!=='ShapeDashP2'||!Array.isArray(p.attempts)||p.attempts.length>2000)throw 0;
+    const seen=new Set(S.log.map(a=>a.id)); let n=0;
+    for(const raw of p.attempts){ let a; try{a=normAttempt(raw);}catch(_){continue;} if(seen.has(a.id))continue; seen.add(a.id); S.log.push(a); n++; }
     if(p.learner&&!S.name)S.name=cleanName(p.learner);
-    save(); $('#ioMsg').innerHTML=`<div class="feedback fb-good">Imported ${n} new answers from ${esc(p.learner||'learner')}, session ${p.session}.</div>`;
+    save(); $('#ioMsg').innerHTML=`<div class="feedback fb-good">Imported ${n} new answers from ${esc(p.learner||'learner')}, session ${esc(p.session)}.</div>`;
    }catch(e){ $('#ioMsg').innerHTML=`<div class="feedback fb-bad">That file doesn't look like a Shape Dash session.</div>`; } };
   r.readAsText(f);
 }
 function exportAll(){
-  const blob=new Blob([JSON.stringify(S)],{type:'application/json'});
-  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  const backup={app:'ShapeDashP2',kind:'full-backup',schemaVersion:SCHEMA,exportedAt:new Date().toISOString(),state:S};
+  const blob=new Blob([JSON.stringify(backup)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a'); a.href=url;
   a.download=`ShapeDash_P2_FullBackup_${new Date().toISOString().slice(0,10)}.json`;
   document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),4000);
   $('#ioMsg').innerHTML=`<div class="feedback fb-good">Backup downloaded to your iCloud folder ✓</div>`;
 }
 

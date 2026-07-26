@@ -730,7 +730,8 @@ function mockSet(){
 const DEFAULT={name:'',pin:'',session:0,step:0,qi:0,cur:null,log:[],retryQueue:[],
   mastery:{s1:50,s2:50,s3:50,s4:50,s5:50,s6:50,s7:50,s8:50},
   streak:0,best:0,badges:[],stars:0,stretch:[false,false,false,false],
-  mockScore:null,mockTotal:10,done:[false,false,false,false],overrides:{},comments:{}};
+  mockScore:null,mockTotal:10,done:[false,false,false,false],overrides:{},comments:{},
+  sessionSubmissions:{},schemaVersion:1};
 const SCHEMA=1;
 let S=load();
 function cleanName(s){ return String(s||'').trim().replace(/[\s\-−–—]+$/,''); }
@@ -940,7 +941,7 @@ function renderLesson(st){
 
 /* ---------- quiz engine ---------- */
 let T0=0, hintsUsed=0, attemptNo=1;
-let clockTimer=null, advTimer=null, qLock=false;  // owned timers + one-shot submit lock (H-04)
+let clockTimer=null, advTimer=null, qLock=false, awaitChange=null;  // owned timers + one-shot submit lock (H-04)
 function startQuiz(st){
   if(!S.cur){
     let items;
@@ -967,7 +968,7 @@ function curItem(){ return S.cur.items[S.qi]; }
 function renderQuestion(){
   const it=curItem();
   if(!it){ finishQuiz(); return; }
-  T0=Date.now(); hintsUsed=0; attemptNo=1; selVal=null; clearTimeout(clockTimer); clearTimeout(advTimer); qLock=false;
+  T0=Date.now(); hintsUsed=0; attemptNo=1; selVal=null; clearTimeout(clockTimer); clearTimeout(advTimer); qLock=false; awaitChange=null;
   const mode=S.cur.mode;
   const n=S.cur.items.length;
   const label={warm:'Warm up',diag:'Detective mission',practice:'Practice',trap:'Trap Spotter',
@@ -1000,11 +1001,14 @@ function renderQuestion(){
   initCanvas();
   if(mode==='mock') tickClock();
   const ai=$('#ansIn'); if(ai){
+    ai.addEventListener('input',e=>maybeUnlock(e.target.value));
     ai.addEventListener('keydown',e=>{if(e.key==='Enter')doCheck();});
     ai.addEventListener('click',()=>ai.focus()); } /* belt & braces: finger tap always focuses + opens keyboard */
 }
 let selVal=null;
+function maybeUnlock(v){ if(awaitChange!=null && String(v)!==awaitChange){ qLock=false; awaitChange=null; } }
 function selChoice(btn){ selVal=btn.getAttribute('data-v').replace('&gt;','>').replace('&lt;','<');
+  maybeUnlock(selVal);
   document.querySelectorAll('.choice').forEach(b=>b.classList.remove('sel')); btn.classList.add('sel'); }
 function tickClock(){ clearTimeout(clockTimer);
   const el=$('#clock'); if(!el||!S.cur||!S.cur.deadline) return;
@@ -1040,13 +1044,14 @@ function doCheck(){ if(qLock) return;
     scheduleAdvance(1100);
   } else {
     if(attemptNo===1){ attemptNo=2; hintsUsed++;
+      qLock=true; awaitChange=String(user); // lock until the answer changes (H-04 residual)
       showFB('hint',`🤔 Not quite … here's a hint:<br><b>${it.hints[0]}</b><br><span class="small">Fix your working and try again!</span>`);
     } else {
       qLock=true; recordAttempt(it,user,false,false); S.streak=0;
       S.retryQueue.push({type:it.type,reason:'auto'});
       showFB('bad',`Almost! The answer is <b>${esc(it.ans)}</b>.`);
       $('#fb').insertAdjacentHTML('beforeend',`<div class="sol"><b>💡 How it works:</b><br>${it.sol}</div>
-        <button class="btn btn-main" onclick="S.qi++;save();renderQuestion()">Got it, next! →</button>`);
+        <button class="btn btn-main" onclick="scheduleAdvance(0)">Got it, next! →</button>`);
       disableCheck();
     }
   }
@@ -1149,21 +1154,40 @@ function renderSubmit(){
     <h1>Session ${n+1} finished!</h1>
     <p class="big">You answered <b>${ok} of ${at.length}</b> correctly${n===3&&S.mockScore!=null?` and scored <b>${S.mockScore}/${S.mockTotal}</b> in your practice exam`:''}. ${ok/Math.max(1,at.length)>=0.75?'Amazing work! 🌟':'Great effort! 💪'}</p>
     ${won.length?`<div class="badges">${won.map(b=>`<span class="badge won">${b}</span>`).join('')}</div>`:''}
-    <p class="sub">Now send your work to Dad with one tap:</p>
-    <button class="btn btn-main" onclick="doSubmit(${n})">📤 Submit my work</button>
-    <div id="afterSubmit"></div></div>`);
+    <p class="sub">Your work saves to Dad automatically. All done here:</p>
+    <div id="syncStatus" class="feedback">Saved on iPad · starting sync…</div>
+    <button class="btn btn-main" onclick="submitCurrentSession(${n})">🔄 Sync again</button>
+    <a class="btn btn-teal linkbtn" href="sms:&body=${encodeURIComponent(summaryText(n))}">💬 Tell Dad on iMessage</a>
+    <button class="btn btn-main" onclick="closeSession(${n})">${final?'Finish! 🌟':'Done for now! 👋'}</button>
+    <button class="btn btn-soft" onclick="exportSession(${n})">⬇️ Export backup (.json)</button></div>`);
+  submitCurrentSession(n);
 }
-function doSubmit(n){
+// Stable per-session submission id, persisted so retries reuse one Firestore doc.
+function sessionSubmitRec(n){
+  if(!S.sessionSubmissions||typeof S.sessionSubmissions!=='object') S.sessionSubmissions={};
+  let rec=S.sessionSubmissions[n];
+  if(!rec){ rec={id:(self.crypto&&crypto.randomUUID?crypto.randomUUID():'sub-'+Date.now()+'-'+Math.random().toString(36).slice(2)),created:Date.now(),status:'pending'}; S.sessionSubmissions[n]=rec; save(); }
+  return rec;
+}
+async function submitCurrentSession(n){
+  const rec=sessionSubmitRec(n); const el=$('#syncStatus'); const sync=window.StudyDashSync;
+  const at=sessionAttempts(n);
+  if(!sync||typeof sync.submitSession!=='function'){ if(el)el.textContent='Saved on this iPad ✓ (open online to sync to Dad)'; return; }
+  if(el)el.textContent='Saved on iPad · Syncing…';
+  try{
+    const env={session:n,learner:S.name,attempts:at.length,correct:at.filter(a=>a.correct===true).length,summary:summaryText(n)};
+    const r=await sync.submitSession(rec.id,env);
+    rec.status=r.status; save();
+    if(el)el.textContent=r.status==='synced'?'Synced with Dad ✓':'Saved offline · will retry automatically';
+  }catch(e){ if(el)el.textContent='Saved offline · will retry automatically'; }
+}
+// Explicit backup export (not the submission transport). Revokes the object URL (audit L-02).
+function exportSession(n){
   const blob=new Blob([buildPackage(n)],{type:'application/json'});
-  const a=document.createElement('a');
-  a.href=URL.createObjectURL(blob);
-  a.download=`DecimalDash_Session${n+1}_${new Date().toISOString().slice(0,10)}.json`;
+  const url=URL.createObjectURL(blob); const a=document.createElement('a');
+  a.href=url; a.download=`DecimalDash_Session${n+1}_${new Date().toISOString().slice(0,10)}.json`;
   document.body.appendChild(a); a.click(); a.remove();
-  const txt=encodeURIComponent(summaryText(n));
-  $('#afterSubmit').innerHTML=`
-    <div class="feedback fb-good">Your work has been saved and sent to your iCloud folder ✓</div>
-    <a class="btn btn-teal linkbtn" href="sms:&body=${txt}">💬 Tell Dad on iMessage</a>
-    <button class="btn btn-main" onclick="closeSession(${n})">${n===3?'Finish! 🌟':'Done for now! 👋'}</button>`;
+  setTimeout(()=>URL.revokeObjectURL(url),4000);
 }
 function closeSession(n){
   S.done[n]=true; checkBadges(); S.session=n+1; S.step=0; S.cur=null; S.qi=0; save(); go();
@@ -1280,26 +1304,53 @@ function makeCode(skill){
   $('#codeOut').innerHTML=`<div class="feedback fb-good">Send her this code: <b>DD-${ts.join('.')}</b><br>
     <a class="btn btn-teal linkbtn" style="margin-top:8px" href="sms:&body=${encodeURIComponent('Here is a bonus round for you! 🎁 Open Decimal Dash, tap "code from Dad" and type: DD-'+ts.join('.'))}">Send by iMessage</a></div>`;
 }
+// Strict per-field import validation + in-package dedup (audit M-03/C-02).
+// Never trusts imported prompt HTML: prompt is stored as escaped plain text.
+const IMPORT_ID=/^[A-Za-z0-9._:-]{1,80}$/;
+function normAttempt(raw){
+  if(!raw||typeof raw!=='object')throw 0;
+  if(!IMPORT_ID.test(String(raw.id)))throw 0;
+  if(!TYPES[raw.type])throw 0;
+  if(!SKILLS[raw.skill])throw 0;
+  const c=raw.correct===true?true:(raw.correct===false?false:null);
+  return {id:String(raw.id),type:raw.type,skill:raw.skill,mode:String(raw.mode||'').slice(0,24),
+    session:Number.isInteger(raw.session)?raw.session:0,
+    user:String(raw.user==null?'':raw.user).slice(0,200),
+    correct:c,
+    marks:Number.isFinite(raw.marks)?raw.marks:0,maxMarks:Number.isFinite(raw.maxMarks)?raw.maxMarks:0,
+    ts:Number.isFinite(raw.ts)?raw.ts:Date.now(),
+    hints:Number.isFinite(raw.hints)?raw.hints:0,timeS:Number.isFinite(raw.timeS)?raw.timeS:0,
+    ans:String(raw.ans==null?'':raw.ans).slice(0,200),
+    prompt:esc(String(raw.promptText||raw.prompt||'').replace(/<[^>]*>/g,' ').slice(0,400)),
+    needsParentReview:raw.needsParentReview===true,imported:true};
+}
 function importFile(){
   const f=$('#impF').files[0]; if(!f){alert('Choose a file first.');return;}
+  if(f.size>2000000){$('#ioMsg').innerHTML=`<div class="feedback fb-bad">That file is too large to import.</div>`;return;}
   const r=new FileReader();
   r.onload=()=>{ try{
     const p=JSON.parse(r.result);
-    if(p.app!=='DecimalDash')throw 0;
-    const have=new Set(S.log.map(a=>a.id)); let n=0;
-    for(const a of (p.attempts||[])){ if(!have.has(a.id)){S.log.push(a);n++;} }
-    if(p.mastery)S.mastery=p.mastery;
-    if(p.mockScore!=null)S.mockScore=p.mockScore;
+    if(p&&p.kind==='full-backup'&&p.app==='DecimalDash'&&p.state){
+      if(!confirm('Restore a full backup? This replaces ALL current progress on this iPad.'))return;
+      localStorage.setItem('dd1',JSON.stringify(p.state)); location.reload(); return;
+    }
+    if(!p||p.app!=='DecimalDash'||!Array.isArray(p.attempts)||p.attempts.length>2000)throw 0;
+    const seen=new Set(S.log.map(a=>a.id)); let n=0;
+    for(const raw of p.attempts){ let a; try{a=normAttempt(raw);}catch(_){continue;} if(seen.has(a.id))continue; seen.add(a.id); S.log.push(a); n++; }
     if(p.learner&&!S.name)S.name=cleanName(p.learner);
-    save(); $('#ioMsg').innerHTML=`<div class="feedback fb-good">Imported ${n} new answers from ${esc(p.learner||'learner')}, session ${p.session}.</div>`;
+    save(); $('#ioMsg').innerHTML=`<div class="feedback fb-good">Imported ${n} new answers from ${esc(p.learner||'learner')}, session ${esc(p.session)}.</div>`;
    }catch(e){ $('#ioMsg').innerHTML=`<div class="feedback fb-bad">That file doesn't look like a Decimal Dash session.</div>`; } };
   r.readAsText(f);
 }
 function exportAll(){
-  const blob=new Blob([JSON.stringify(S)],{type:'application/json'});
-  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  // Versioned, restorable private full backup (audit M-07). Contains the PIN, so private.
+  const backup={app:'DecimalDash',kind:'full-backup',schemaVersion:SCHEMA,exportedAt:new Date().toISOString(),state:S};
+  const blob=new Blob([JSON.stringify(backup)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a'); a.href=url;
   a.download=`DecimalDash_FullBackup_${new Date().toISOString().slice(0,10)}.json`;
   document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),4000);
   $('#ioMsg').innerHTML=`<div class="feedback fb-good">Backup downloaded to your iCloud folder ✓</div>`;
 }
 
