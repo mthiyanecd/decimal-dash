@@ -258,7 +258,8 @@ function summarise(key,S){
   const avgPct= pcts.length? pcts.reduce((a,b)=>a+b,0)/pcts.length : null;
   let keys=0; if(mock){ const mp=mock.score/mock.total; keys= mp>=0.9?4:mp>=0.8?3:mp>=0.7?2:mp>=0.6?1:(completed?1:0); }
   const weak=Object.entries(mastery).filter(([k,v])=>v<65).sort((a,b)=>a[1]-b[1]).slice(0,3).map(([k,v])=>({skill:k,val:v}));
-  return {key,name:S.name||'',total,completed,attempts,correctRate,mock,mastery,frag,avgPct,keys,weak,retry:(S.retryQueue||[]).length,ts:lastTs(S)};
+  const pendingReviews=(st&&st.pendingReviews)||(log.filter(e=>e&&e.correct===null&&e.needsParentReview).length);
+  return {key,name:S.name||'',total,completed,attempts,correctRate,mock,mastery,frag,avgPct,keys,weak,pendingReviews,retry:(S.retryQueue||[]).length,ts:lastTs(S)};
 }
 function collectionLevel(a){ if(a==null) return 'Spark'; return a>=0.9?'Crown':a>=0.75?'Star':'Spark'; }
 function timeAgo(t){ if(!t) return 'no activity yet'; const s=(Date.now()-t)/1000; if(s<90)return 'just now'; if(s<3600)return Math.round(s/60)+' min ago'; if(s<86400)return Math.round(s/3600)+' h ago'; return Math.round(s/86400)+' d ago'; }
@@ -327,6 +328,19 @@ function renderDash(data,sums){
   const dash=$('dash');
   if(dash.querySelector('details[open] .picview img')) return;  // #8: don't wipe the image the parent is viewing
   dash.innerHTML=''; let any=false;
+  // "Last session received" from the acknowledged submissions feed (audit F-02).
+  if(sync&&sync.getSubmissions){
+    const subs=(sync.getSubmissions()||[]).slice().sort((a,b)=>(b.clientTs||0)-(a.clientTs||0));
+    if(subs.length){ const last=subs[0];
+      const banner=document.createElement('div'); banner.className='dcard';
+      const head=document.createElement('div'); head.className='dhead'; head.textContent='📥 Last session received';
+      const meta=document.createElement('div'); meta.className='dmeta';
+      meta.textContent=(last.learner||'Learner')+' · '+((META[last.appKey]||{}).app||last.app||'app')
+        +' · session '+(last.session!=null?(last.session+1):'?')
+        +' · '+(last.correct!=null&&last.attempts!=null?(last.correct+'/'+last.attempts+' correct · '):'')+timeAgo(last.clientTs);
+      banner.appendChild(head); banner.appendChild(meta); dash.appendChild(banner); any=true;
+    }
+  }
   KEYS.forEach((k,idx)=>{
     const S=data[k]; const s=sums[idx]; const m=META[k]; if(!S||!s) return; any=true;
     const card=document.createElement('div'); card.className='dcard';
@@ -338,6 +352,7 @@ function renderDash(data,sums){
     if(s.mock) html+='<div class="b">Mock <b>'+s.mock.score+'/'+s.mock.total+'</b></div>';
     html+='<div class="b">Keys <b>'+s.keys+'</b></div></div>';
     if(s.weak.length) s.weak.forEach(w=>{ html+='<div class="issue">⚠️ '+esc(w.skill.toUpperCase())+' needs attention · mastery '+Math.round(w.val)+'</div>'; });
+    if(s.pendingReviews>0) html+='<div class="issue" style="background:#fff3d6;border-color:#e0a800">✍️ '+s.pendingReviews+' Pencil answer'+(s.pendingReviews>1?'s':'')+' waiting for your review — open the handwriting below to approve or correct</div>';
     if(s.retry>0) html+='<div class="issue">↻ '+s.retry+' question'+(s.retry>1?'s':'')+' in her retry queue</div>';
     if(!s.weak.length && s.retry===0 && s.completed>0) html+='<div class="ok">✓ No flagged issues right now.</div>';
     const mk=Object.keys(s.mastery);
@@ -395,18 +410,29 @@ function renderRedemptions(){
 // PIN gate
 function storedPins(data){ const out=[]; for(const k of KEYS){ if(data[k]&&data[k].pin) out.push(String(data[k].pin)); } return out; }
 function storedPinHashes(data){ const out=[]; for(const k of KEYS){ if(data[k]&&data[k].pinHash) out.push(String(data[k].pinHash)); } return out; }
-function anyLoaded(data){ return KEYS.some(k=>!!data[k]); }
+// Every expected app must have RESOLVED (ready|empty|error) before we evaluate
+// the PIN gate. This closes the fail-open race where one early document with no
+// PIN unlocked the whole family, and stops an all-empty family loading forever.
+function readiness(){
+  if(sync&&sync.getStateStatus){
+    const st=sync.getStateStatus(); const vals=KEYS.map(k=>st[k]||'loading');
+    return { allResolved: vals.every(v=>v==='ready'||v==='empty'||v==='error'),
+             anyError: vals.some(v=>v==='error') };
+  }
+  return { allResolved:false, anyError:false };
+}
 async function sha256(str){ const b=new TextEncoder().encode(String(str)); const h=await crypto.subtle.digest("SHA-256",b); return [...new Uint8Array(h)].map(x=>x.toString(16).padStart(2,"0")).join(""); }
 let unlocked=false;
 function renderGate(data,sums){
   const gate=$('pinGate');
   const plains=storedPins(data), hashes=storedPinHashes(data);
-  const hasPin=plains.length||hashes.length, loaded=anyLoaded(data);
-  if(unlocked || (loaded && !hasPin)){ gate.innerHTML=''; $('unlocked').style.display='block';
+  const hasPin=plains.length||hashes.length; const r=readiness();
+  if(unlocked || (r.allResolved && !hasPin)){ gate.innerHTML=''; $('unlocked').style.display='block';
     renderDash(data,sums); renderAssignList(); renderCatalogue(); renderRedemptions();
     const v=sync.getVault(); $('curExamKeys').textContent=(v&&v.examKeys)||0; return; }
   $('unlocked').style.display='none';
-  if(!loaded){ gate.innerHTML='<div class="muted">Loading family settings…</div>'; return; }
+  if(!r.allResolved){ gate.innerHTML='<div class="muted">Loading family settings…</div>'; return; }
+  if(r.anyError && !hasPin){ gate.innerHTML='<div class="muted">Could not load some family data. <button class="btn" style="margin-top:0" onclick="location.reload()">Retry</button></div>'; return; }
   if(gate.querySelector('#pinIn')) return; /* gate already showing … don't wipe a half-typed PIN on refresh */
   gate.innerHTML='<div class="muted">Enter the parent PIN (the 4-digit code you set inside an app).</div>'
     +'<div style="margin-top:10px"><input class="pininput" id="pinIn" inputmode="numeric" maxlength="8" type="password"> '
@@ -431,14 +457,27 @@ function openChest(){
   document.querySelectorAll('.rewardpick').forEach(b=>b.onclick=()=>chooseReward(b.getAttribute('data-id'),b.getAttribute('data-desc'),lastVC.level));
   $('chestCancel').onclick=hideChest;
 }
+let redeeming=false;
 async function chooseReward(id,desc,level){
-  const v=sync.getVault()||{};
+  if(redeeming) return; redeeming=true;
+  document.querySelectorAll('.rewardpick').forEach(b=>b.disabled=true);   // disable while pending (H-01)
+  const reqId=(self.crypto&&crypto.randomUUID?crypto.randomUUID():'red-'+Date.now()+'-'+Math.random().toString(36).slice(2));
   try{
-    await sync.addRedemption({level,rewardId:id,rewardDesc:desc,status:'pending'});
-    await sync.updateVault({usedKeys:(v.usedKeys||0)+1, openedChests:(v.openedChests||0)+1});
+    if(typeof sync.redeemReward==='function'){
+      // Atomic + idempotent: balance check, redemption + counters in one transaction.
+      await sync.redeemReward({requestId:reqId,rewardId:id,rewardDesc:desc,level});
+    } else {
+      const v=sync.getVault()||{};
+      await sync.addRedemption({level,rewardId:id,rewardDesc:desc,status:'pending'});
+      await sync.updateVault({usedKeys:(v.usedKeys||0)+1, openedChests:(v.openedChests||0)+1});
+    }
     showChest('<h2>🎉 Chest opened!</h2><div class="muted">You chose <b>'+esc(desc)+'</b>. Dad will approve it soon.</div><button class="btn" id="chestOk">Yay!</button>');
     $('chestOk').onclick=hideChest;
-  }catch(e){ showChest('<h2>Hmm…</h2><div class="muted">Could not open it just now. Try again in a moment.</div><button class="btn" id="chestOk">OK</button>'); $('chestOk').onclick=hideChest; }
+  }catch(e){
+    const msg=/insufficient/i.test(String(e&&e.message))?'You do not have a Key to open this chest yet.':'Could not open it just now. Try again in a moment.';
+    showChest('<h2>Hmm…</h2><div class="muted">'+msg+'</div><button class="btn" id="chestOk">OK</button>'); $('chestOk').onclick=hideChest;
+    document.querySelectorAll('.rewardpick').forEach(b=>b.disabled=false);
+  } finally { redeeming=false; }
 }
 
 function refresh(){
@@ -449,10 +488,33 @@ function refresh(){
   if($('ovl').classList.contains('on')){ const sc=$('ovl').scrollTop; renderGate(data,sums); $('ovl').scrollTop=sc; }
 }
 
+// Distinct, actionable connection copy per phase (audit F-01) — not one generic
+// "Connecting" line for offline / permission-denied / error.
+function setConnMsg(phase){
+  const m=$('syncMsg'); if(!m) return;
+  const map={
+    loading:'<span class="live-dot"></span>Connecting to Firebase…',
+    connected:'<span class="live-dot"></span>Live sync connected. Updates appear automatically.',
+    syncing:'<span class="live-dot"></span>Syncing…',
+    offline:'⚠️ You appear to be offline. The Hub reconnects automatically when the connection returns.',
+    'permission-denied':'⛔ The database refused access. Ask the administrator to check the Firestore security rules for this family.',
+    'auth-failed':'⛔ Could not sign in to Firebase. Reload the page; if it persists, sign-in may be blocked on this network.',
+    error:'⚠️ Something went wrong talking to Firebase. <button class="btn" style="margin-top:0" onclick="location.reload()">Retry</button>'
+  };
+  m.innerHTML=map[phase]||map.loading;
+}
+let bootTries=0;
 function boot(){
-  if(!window.StudyDashSync){ setTimeout(boot,120); return; }
+  if(!window.StudyDashSync){
+    // Bounded startup wait (~12s) then an actionable Retry, instead of polling forever.
+    if(++bootTries>100){ $('syncMsg').innerHTML='⚠️ Sync did not start. <button class="btn" style="margin-top:0" id="retryBoot">Retry</button>'; const rb=$('retryBoot'); if(rb) rb.onclick=()=>{ bootTries=0; boot(); }; return; }
+    setTimeout(boot,120); return;
+  }
   sync=window.StudyDashSync;
-  $('syncMsg').innerHTML='<span class="live-dot"></span>Live sync connected. Updates appear automatically.';
+  setConnMsg(sync.getStatus? sync.getStatus() : 'connected');
+  if(sync.onStatus) sync.onStatus(setConnMsg);
+  if(sync.onStateStatus) sync.onStateStatus(()=>refresh());
+  if(sync.onSubmissions) sync.onSubmissions(()=>refresh());
   sync.onState(()=>refresh()); sync.onAssignments(()=>refresh()); sync.onVault(()=>refresh()); sync.onCatalogue(()=>refresh()); sync.onRedemptions(()=>refresh());
   $('afGo').onclick=async()=>{
     const note=$('afNote').value.trim(); if(!note){ $('afMsg').textContent='Add a short note so she knows what to do.'; return; }
