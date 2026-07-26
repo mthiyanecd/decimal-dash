@@ -441,26 +441,65 @@ window.StudyDashSync = {
     });
   },
   async updateVault(patch) { await ready; return setDoc(vaultDoc, Object.assign({ updatedAt: serverTimestamp() }, patch), { merge: true }); },
-  // Transactional, idempotent reward redemption with in-transaction balance check.
-  async redeemReward(o) {
+
+  // CHILD-safe reward request. Creates a "pending" redemption only. It must NOT
+  // read or write the vault — parents approve and spend the Key later. Idempotent
+  // by requestId so double-taps/retries never create a second redemption.
+  async requestReward(o) {
     await ready;
     o = o || {};
     const { requestId, rewardId, rewardDesc, level } = o;
-    if (!requestId) throw new Error("redeemReward requires requestId");
+    if (!requestId) throw new Error("requestReward requires requestId");
     return runTransaction(db, async tx => {
       const rSnap = await tx.get(redDoc(requestId));
       if (rSnap.exists()) return { status: "duplicate" }; // idempotent retry
+      tx.set(redDoc(requestId), {
+        rewardId: String(rewardId || ""), rewardDesc: String(rewardDesc || ""),
+        level: level != null ? level : null, status: "pending",
+        ts: Date.now(), createdAt: serverTimestamp()
+      });
+      return { status: "pending" };
+    });
+  },
+  // Back-compat alias: request-only, so no caller can silently write the vault.
+  async redeemReward(o) { return window.StudyDashSync.requestReward(o); },
+
+  // PARENT action. Approves a pending redemption AND spends exactly one Key from
+  // the vault, atomically. Idempotent: a retry after approval is a no-op. All
+  // vault writes for a redemption happen here, parent-side only.
+  async approveRedemption(o) {
+    await ready;
+    o = o || {};
+    const { requestId } = o;
+    if (!requestId) throw new Error("approveRedemption requires requestId");
+    return runTransaction(db, async tx => {
+      const rSnap = await tx.get(redDoc(requestId));
+      if (!rSnap.exists()) throw new Error("redemption-missing");
+      const r = rSnap.data();
+      if (r.status === "approved" || r.status === "fulfilled") return { status: "duplicate" };
       const vSnap = await tx.get(vaultDoc);
       if (!vSnap.exists()) throw new Error("vault-missing");
       const v = vSnap.data();
       const earned = Number(v.examKeys) || 0, used = Number(v.usedKeys) || 0;
       if (earned - used < 1) throw new Error("insufficient-keys");
-      tx.set(redDoc(requestId), {
-        rewardId: String(rewardId || ""), rewardDesc: String(rewardDesc || ""),
-        level: level != null ? level : null, status: "pending", createdAt: serverTimestamp()
-      });
+      tx.update(redDoc(requestId), { status: "approved", approvedAt: serverTimestamp() });
       tx.update(vaultDoc, { usedKeys: used + 1, openedChests: (Number(v.openedChests) || 0) + 1, updatedAt: serverTimestamp() });
-      return { status: "ok" };
+      return { status: "approved" };
+    });
+  },
+  // PARENT action. Rejects a redemption; never touches the vault; idempotent.
+  async rejectRedemption(o) {
+    await ready;
+    o = o || {};
+    const { requestId } = o;
+    if (!requestId) throw new Error("rejectRedemption requires requestId");
+    return runTransaction(db, async tx => {
+      const rSnap = await tx.get(redDoc(requestId));
+      if (!rSnap.exists()) throw new Error("redemption-missing");
+      const r = rSnap.data();
+      if (r.status === "rejected") return { status: "duplicate" };
+      tx.update(redDoc(requestId), { status: "rejected", rejectedAt: serverTimestamp() });
+      return { status: "rejected" };
     });
   },
 
