@@ -6,8 +6,8 @@
   window.StudyDashConfig = Object.assign({
     familyId: "zimmy",
     aiModel: "gemini-3.6-flash",
-    appCheckSiteKey: "",
+    appCheckSiteKey: "6Lde8GstAAAAAMtTa3za8xyY7v9AgllDC0VNF5nH",
     appCheckDebug: false,
-    parentEmails: []
+    parentEmails: ["mthiyanecd@gmail.com"]
   }, existing);
 })();
