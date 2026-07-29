@@ -1,0 +1,457 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function validAppKey(appKey) {
+      return appKey in ['dd1', 'ddp2', 'histp2'];
+    }
+
+    function isParent(familyId) {
+      return signedIn()
+        && request.auth.token.keys().hasAll(['familyId', 'role', 'email_verified'])
+        && request.auth.token.familyId == familyId
+        && request.auth.token.role == 'parent'
+        && request.auth.token.email_verified == true;
+    }
+
+    function memberPath(familyId) {
+      return /databases/$(database)/documents/families/$(familyId)/members/$(request.auth.uid);
+    }
+
+    function isActiveLearner(familyId) {
+      return signedIn()
+        && exists(memberPath(familyId))
+        && get(memberPath(familyId)).data.familyId == familyId
+        && get(memberPath(familyId)).data.role == 'learner'
+        && get(memberPath(familyId)).data.active == true;
+    }
+
+    function learnerCanUse(familyId, appKey) {
+      return validAppKey(appKey)
+        && isActiveLearner(familyId)
+        && get(memberPath(familyId)).data.appKeys is list
+        && get(memberPath(familyId)).data.appKeys.hasAny([appKey]);
+    }
+
+    function learnerUidCanUse(familyId, uid, appKey) {
+      let path = /databases/$(database)/documents/families/$(familyId)/members/$(uid);
+      return validAppKey(appKey) && exists(path)
+        && get(path).data.familyId == familyId
+        && get(path).data.role == 'learner'
+        && get(path).data.active == true
+        && get(path).data.appKeys is list
+        && get(path).data.appKeys.hasAny([appKey]);
+    }
+
+    function isFamilyMember(familyId) {
+      return isParent(familyId) || isActiveLearner(familyId);
+    }
+
+    function timeLike(value) {
+      return value is int || value is timestamp;
+    }
+
+    function memberDataValid(familyId, uid, data) {
+      return data.keys().hasAll(['familyId', 'role', 'active', 'appKeys', 'createdByUid', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['familyId', 'role', 'active', 'appKeys', 'label', 'createdByUid', 'createdAt', 'updatedAt'])
+        && data.familyId == familyId
+        && data.role == 'learner'
+        && data.active is bool
+        && data.appKeys is list
+        && data.appKeys.size() > 0
+        && data.appKeys.hasOnly(['dd1', 'ddp2', 'histp2'])
+        && data.createdByUid is string
+        && data.createdByUid == request.auth.uid
+        && timeLike(data.createdAt)
+        && timeLike(data.updatedAt)
+        && (!('label' in data) || data.label is string);
+    }
+
+    match /families/{familyId}/members/{uid} {
+      allow get: if isParent(familyId) || (signedIn() && request.auth.uid == uid);
+      allow list: if isParent(familyId);
+      allow create: if isParent(familyId) && memberDataValid(familyId, uid, request.resource.data);
+      allow update: if isParent(familyId)
+        && request.resource.data.familyId == resource.data.familyId
+        && request.resource.data.role == resource.data.role
+        && request.resource.data.createdByUid == resource.data.createdByUid
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['active', 'appKeys', 'label', 'updatedAt'])
+        && request.resource.data.active is bool
+        && request.resource.data.appKeys is list
+        && request.resource.data.appKeys.size() > 0
+        && request.resource.data.appKeys.hasOnly(['dd1', 'ddp2', 'histp2'])
+        && timeLike(request.resource.data.updatedAt);
+      allow delete: if isParent(familyId);
+    }
+
+    function stateDataValid(familyId, appKey, data) {
+      return validAppKey(appKey)
+        && data.keys().hasAll(['family', 'appKey', 'app', 'ownerUid', 'updated', 'log'])
+        && data.family == familyId
+        && data.appKey == appKey
+        && data.app is string
+        && data.ownerUid is string
+        && data.ownerUid == request.auth.uid
+        && data.updated is int
+        && data.log is list
+        && (!('stats' in data) || data.stats is map);
+    }
+
+    function parentStateTransferValid(familyId, appKey) {
+      let newUid = request.resource.data.ownerUid;
+      let transfer = /databases/$(database)/documents/families/$(familyId)/stateTransfers/$(appKey + '_' + newUid);
+      let oldUid = ('ownerUid' in resource.data) ? resource.data.ownerUid : '';
+      return isParent(familyId)
+        && newUid is string
+        && learnerUidCanUse(familyId, newUid, appKey)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ownerUid'])
+        && existsAfter(transfer)
+        && getAfter(transfer).data.family == familyId
+        && getAfter(transfer).data.appKey == appKey
+        && getAfter(transfer).data.oldOwnerUid == oldUid
+        && getAfter(transfer).data.newOwnerUid == newUid
+        && getAfter(transfer).data.transferredByUid == request.auth.uid;
+    }
+
+    match /families/{familyId}/state/{appKey} {
+      allow read: if isParent(familyId)
+        || (learnerCanUse(familyId, appKey) && resource.data.ownerUid == request.auth.uid);
+      allow create: if learnerCanUse(familyId, appKey)
+        && stateDataValid(familyId, appKey, request.resource.data);
+      allow update: if (learnerCanUse(familyId, appKey)
+          && stateDataValid(familyId, appKey, request.resource.data)
+          && (!('ownerUid' in resource.data) || resource.data.ownerUid == request.auth.uid)
+          && (!('family' in resource.data) || request.resource.data.family == resource.data.family)
+          && (!('appKey' in resource.data) || request.resource.data.appKey == resource.data.appKey)
+          && (!('app' in resource.data) || request.resource.data.app == resource.data.app))
+        || parentStateTransferValid(familyId, appKey);
+      allow delete: if isParent(familyId);
+    }
+
+    function stateTransferDataValid(familyId, transferId, data) {
+      let state = /databases/$(database)/documents/families/$(familyId)/state/$(data.appKey);
+      let oldUid = get(state).data.get('ownerUid', '');
+      return data.keys().hasAll(['family', 'appKey', 'oldOwnerUid', 'newOwnerUid', 'transferredByUid', 'createdAt'])
+        && data.keys().hasOnly(['family', 'appKey', 'oldOwnerUid', 'newOwnerUid', 'transferredByUid', 'createdAt'])
+        && data.family == familyId
+        && validAppKey(data.appKey)
+        && data.oldOwnerUid is string
+        && data.oldOwnerUid == oldUid
+        && data.newOwnerUid is string
+        && transferId == data.appKey + '_' + data.newOwnerUid
+        && data.transferredByUid == request.auth.uid
+        && timeLike(data.createdAt)
+        && learnerUidCanUse(familyId, data.newOwnerUid, data.appKey)
+        && getAfter(state).data.ownerUid == data.newOwnerUid;
+    }
+
+    match /families/{familyId}/stateTransfers/{transferId} {
+      allow read: if isParent(familyId);
+      allow create: if isParent(familyId)
+        && stateTransferDataValid(familyId, transferId, request.resource.data);
+      allow update, delete: if false;
+    }
+
+    function assignmentDataValid(familyId, data) {
+      return data.keys().hasAll(['family', 'appKey', 'status', 'createdBy', 'createdByUid', 'created'])
+        && data.keys().hasOnly(['family', 'appKey', 'status', 'createdBy', 'createdByUid', 'created',
+                               'subject', 'taskType', 'note', 'dueDate', 'dueTime', 'minutes', 'doneTs'])
+        && data.family == familyId
+        && validAppKey(data.appKey)
+        && data.status in ['todo', 'done']
+        && data.createdBy == 'parent'
+        && data.createdByUid is string
+        && data.createdByUid == request.auth.uid
+        && data.created is int
+        && (!('subject' in data) || data.subject is string)
+        && (!('taskType' in data) || data.taskType is string)
+        && (!('note' in data) || data.note is string)
+        && (!('dueDate' in data) || data.dueDate is string)
+        && (!('dueTime' in data) || data.dueTime is string)
+        && (!('minutes' in data) || data.minutes == null || data.minutes is number)
+        && (!('doneTs' in data) || data.doneTs is int);
+    }
+
+    function assignmentIdentityUnchanged() {
+      return request.resource.data.family == resource.data.family
+        && request.resource.data.appKey == resource.data.appKey
+        && request.resource.data.createdBy == resource.data.createdBy
+        && request.resource.data.createdByUid == resource.data.createdByUid
+        && request.resource.data.created == resource.data.created;
+    }
+
+    match /families/{familyId}/assignments/{assignmentId} {
+      allow read: if isParent(familyId)
+        || learnerCanUse(familyId, resource.data.appKey);
+      allow create: if isParent(familyId) && assignmentDataValid(familyId, request.resource.data);
+      allow update: if (isParent(familyId)
+          && assignmentIdentityUnchanged()
+          && request.resource.data.status in ['todo', 'done'])
+        || (resource.data.family == familyId
+          && learnerCanUse(familyId, resource.data.appKey)
+          && resource.data.status == 'todo'
+          && request.resource.data.status == 'done'
+          && request.resource.data.doneTs is int
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'doneTs']));
+      allow delete: if isParent(familyId);
+    }
+
+    function vaultDataValid(data) {
+      return data.keys().hasOnly(['examKeys', 'usedKeys', 'openedChests', 'lastAwardId', 'lastRedemptionId', 'updatedAt'])
+        && (!('examKeys' in data) || (data.examKeys is int && data.examKeys >= 0))
+        && (!('usedKeys' in data) || (data.usedKeys is int && data.usedKeys >= 0))
+        && (!('openedChests' in data) || (data.openedChests is int && data.openedChests >= 0))
+        && (!('lastAwardId' in data) || data.lastAwardId is string)
+        && (!('lastRedemptionId' in data) || data.lastRedemptionId is string)
+        && (!('updatedAt' in data) || timeLike(data.updatedAt));
+    }
+
+    function awardVaultCoupled(familyId, awardId) {
+      let vault = /databases/$(database)/documents/families/$(familyId)/vault/main;
+      let award = /databases/$(database)/documents/families/$(familyId)/vault/main/awards/$(awardId);
+      return existsAfter(vault) && existsAfter(award)
+        && getAfter(vault).data.lastAwardId == awardId
+        && ((!exists(vault)
+            && getAfter(vault).data.examKeys == getAfter(award).data.keys)
+          || (exists(vault)
+            && getAfter(vault).data.examKeys == get(vault).data.get('examKeys', 0) + getAfter(award).data.keys
+            && getAfter(vault).data.diff(get(vault).data).affectedKeys().hasOnly(['examKeys', 'lastAwardId', 'updatedAt'])));
+    }
+
+    function redemptionVaultCoupled(familyId, redemptionId) {
+      let vault = /databases/$(database)/documents/families/$(familyId)/vault/main;
+      let redemption = /databases/$(database)/documents/families/$(familyId)/redemptions/$(redemptionId);
+      return exists(vault) && exists(redemption)
+        && get(redemption).data.status == 'pending'
+        && getAfter(redemption).data.status == 'approved'
+        && getAfter(vault).data.lastRedemptionId == redemptionId
+        && getAfter(vault).data.usedKeys == get(vault).data.get('usedKeys', 0) + 1
+        && getAfter(vault).data.openedChests == get(vault).data.get('openedChests', 0) + 1
+        && get(vault).data.get('examKeys', 0) + getAfter(redemption).data.approvedLearnerKeys
+          - get(vault).data.get('usedKeys', 0) >= 1
+        && getAfter(vault).data.diff(get(vault).data).affectedKeys()
+          .hasOnly(['usedKeys', 'openedChests', 'lastRedemptionId', 'updatedAt']);
+    }
+
+    match /families/{familyId}/vault/main {
+      allow read: if isFamilyMember(familyId);
+      allow create: if isParent(familyId) && vaultDataValid(request.resource.data)
+        && ((request.resource.data.get('examKeys', 0) == 0
+            && request.resource.data.get('usedKeys', 0) == 0
+            && request.resource.data.get('openedChests', 0) == 0
+            && !('lastAwardId' in request.resource.data)
+            && !('lastRedemptionId' in request.resource.data))
+          || (('lastAwardId' in request.resource.data)
+            && request.resource.data.lastAwardId is string
+            && awardVaultCoupled(familyId, request.resource.data.lastAwardId)));
+      allow update: if isParent(familyId) && vaultDataValid(request.resource.data)
+        && ((('lastAwardId' in request.resource.data)
+              && request.resource.data.lastAwardId is string
+              && request.resource.data.lastAwardId != resource.data.get('lastAwardId', '')
+              && awardVaultCoupled(familyId, request.resource.data.lastAwardId))
+          || (('lastRedemptionId' in request.resource.data)
+              && request.resource.data.lastRedemptionId is string
+              && request.resource.data.lastRedemptionId != resource.data.get('lastRedemptionId', '')
+              && redemptionVaultCoupled(familyId, request.resource.data.lastRedemptionId)));
+      allow delete: if false;
+    }
+
+    function awardDataValid(familyId, data) {
+      return data.keys().hasAll(['family', 'label', 'keys', 'createdByUid', 'ts', 'createdAt'])
+        && data.keys().hasOnly(['family', 'label', 'keys', 'createdByUid', 'ts', 'createdAt'])
+        && data.family == familyId
+        && data.label is string
+        && data.label.size() <= 200
+        && data.keys is int
+        && data.keys > 0
+        && data.keys <= 20
+        && data.createdByUid == request.auth.uid
+        && data.ts is int
+        && timeLike(data.createdAt);
+    }
+
+    match /families/{familyId}/vault/main/awards/{awardId} {
+      allow read: if isFamilyMember(familyId);
+      allow create: if isParent(familyId) && awardDataValid(familyId, request.resource.data)
+        && awardVaultCoupled(familyId, awardId);
+      allow update, delete: if false;
+    }
+
+    function catalogueDataValid(familyId, data) {
+      return data.keys().hasAll(['family', 'description', 'level', 'createdByUid', 'created'])
+        && data.keys().hasOnly(['family', 'description', 'level', 'createdByUid', 'created'])
+        && data.family == familyId
+        && data.description is string
+        && data.description.size() > 0
+        && data.level in ['Spark', 'Star', 'Crown']
+        && data.createdByUid == request.auth.uid
+        && data.created is int;
+    }
+
+    match /families/{familyId}/catalogue/{itemId} {
+      allow read: if isFamilyMember(familyId);
+      allow create: if isParent(familyId) && catalogueDataValid(familyId, request.resource.data);
+      allow update: if isParent(familyId)
+        && request.resource.data.family == resource.data.family
+        && request.resource.data.createdByUid == resource.data.createdByUid
+        && request.resource.data.created == resource.data.created
+        && catalogueDataValid(familyId, request.resource.data);
+      allow delete: if isParent(familyId);
+    }
+
+    function redemptionCreateValid(familyId, data) {
+      return data.keys().hasAll(['family', 'ownerUid', 'rewardId', 'rewardDesc', 'level', 'status', 'ts', 'createdAt'])
+        && data.keys().hasOnly(['family', 'ownerUid', 'rewardId', 'rewardDesc', 'level', 'status', 'ts', 'createdAt'])
+        && data.family == familyId
+        && data.ownerUid == request.auth.uid
+        && data.rewardId is string
+        && data.rewardDesc is string
+        && (data.level == null || data.level is string || data.level is int)
+        && data.status == 'pending'
+        && data.ts is int
+        && timeLike(data.createdAt);
+    }
+
+    function redemptionIdentityUnchanged() {
+      return request.resource.data.family == resource.data.family
+        && request.resource.data.ownerUid == resource.data.ownerUid
+        && request.resource.data.rewardId == resource.data.rewardId
+        && request.resource.data.rewardDesc == resource.data.rewardDesc
+        && request.resource.data.level == resource.data.level
+        && request.resource.data.ts == resource.data.ts
+        && request.resource.data.createdAt == resource.data.createdAt;
+    }
+
+    function validRedemptionTransition(familyId, redemptionId) {
+      return (resource.data.status == 'pending'
+          && request.resource.data.status == 'approved'
+          && timeLike(request.resource.data.approvedAt)
+          && request.resource.data.approvedLearnerKeys is int
+          && request.resource.data.approvedLearnerKeys >= 0
+          && request.resource.data.approvedLearnerKeys <= 20
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'approvedAt', 'approvedLearnerKeys'])
+          && redemptionVaultCoupled(familyId, redemptionId))
+        || (resource.data.status == 'pending'
+          && request.resource.data.status == 'rejected'
+          && timeLike(request.resource.data.rejectedAt)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'rejectedAt']))
+        || (resource.data.status == 'approved'
+          && request.resource.data.status == 'fulfilled'
+          && timeLike(request.resource.data.fulfilledTs)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'fulfilledTs']));
+    }
+
+    match /families/{familyId}/redemptions/{redemptionId} {
+      allow read: if isParent(familyId)
+        || (isActiveLearner(familyId) && resource.data.family == familyId && resource.data.ownerUid == request.auth.uid);
+      allow create: if (isActiveLearner(familyId) || isParent(familyId))
+        && redemptionCreateValid(familyId, request.resource.data);
+      allow update: if isParent(familyId) && redemptionIdentityUnchanged()
+        && validRedemptionTransition(familyId, redemptionId);
+      allow delete: if false;
+    }
+
+    function submissionDataValid(familyId, submissionId, data) {
+      return data.keys().hasAll(['id', 'family', 'appKey', 'app', 'ownerUid', 'clientTs', 'receivedAt'])
+        && data.id == submissionId
+        && data.family == familyId
+        && validAppKey(data.appKey)
+        && data.app is string
+        && data.ownerUid == request.auth.uid
+        && data.clientTs is int
+        && timeLike(data.receivedAt);
+    }
+
+    function submissionIdentityUnchanged() {
+      return request.resource.data.id == resource.data.id
+        && request.resource.data.family == resource.data.family
+        && request.resource.data.appKey == resource.data.appKey
+        && request.resource.data.app == resource.data.app
+        && (!('ownerUid' in resource.data) || request.resource.data.ownerUid == resource.data.ownerUid)
+        && request.resource.data.clientTs == resource.data.clientTs;
+    }
+
+    match /families/{familyId}/submissions/{submissionId} {
+      allow read: if isParent(familyId)
+        || (isActiveLearner(familyId) && resource.data.ownerUid == request.auth.uid);
+      allow create: if learnerCanUse(familyId, request.resource.data.appKey)
+        && submissionDataValid(familyId, submissionId, request.resource.data);
+      allow update: if learnerCanUse(familyId, resource.data.appKey)
+        && (!('ownerUid' in resource.data) || resource.data.ownerUid == request.auth.uid)
+        && submissionIdentityUnchanged()
+        && submissionDataValid(familyId, submissionId, request.resource.data);
+      allow delete: if false;
+    }
+
+    function imageDataValid(familyId, imageId, data) {
+      return data.keys().hasAll(['family', 'ownerUid', 'key', 'ts', 'jpeg', 'w', 'h', 'type', 'skill', 'session'])
+        && data.keys().hasOnly(['family', 'ownerUid', 'key', 'ts', 'jpeg', 'w', 'h', 'type', 'skill', 'session'])
+        && data.family == familyId
+        && validAppKey(data.key)
+        && imageId.matches('^' + data.key + '_[0-9]+$')
+        && data.ownerUid == request.auth.uid
+        && data.ts is int
+        && data.jpeg is string
+        && data.w is int && data.w > 0
+        && data.h is int && data.h > 0
+        && data.type is string
+        && data.skill is string
+        && (data.session == null || data.session is int);
+    }
+
+    match /families/{familyId}/images/{imageId} {
+      allow read: if isParent(familyId)
+        || (learnerCanUse(familyId, resource.data.key) && resource.data.ownerUid == request.auth.uid);
+      allow create: if learnerCanUse(familyId, request.resource.data.key)
+        && imageDataValid(familyId, imageId, request.resource.data);
+      allow update: if (learnerCanUse(familyId, resource.data.key)
+          && resource.data.ownerUid == request.auth.uid
+          && request.resource.data == resource.data)
+        || (!('ownerUid' in resource.data)
+          && learnerCanUse(familyId, request.resource.data.key)
+          && request.resource.data.family == familyId
+          && request.resource.data.ownerUid == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['family', 'ownerUid']));
+      allow delete: if isParent(familyId);
+    }
+
+    function reviewDataValid(familyId, reviewId, data) {
+      return data.keys().hasAll(['version', 'appKey', 'ownerUid', 'attemptId', 'decision', 'correct', 'marks', 'maxMarks',
+                                  'transcription', 'comment', 'resolverUid', 'resolvedAt', 'automated'])
+        && data.keys().hasOnly(['version', 'appKey', 'ownerUid', 'attemptId', 'decision', 'correct', 'marks', 'maxMarks',
+                                'transcription', 'comment', 'resolverUid', 'resolvedAt', 'automated'])
+        && data.version == 1
+        && validAppKey(data.appKey)
+        && data.ownerUid is string
+        && data.attemptId is string
+        && reviewId == data.appKey + '_' + data.attemptId
+        && data.decision in ['approve', 'correct', 'override']
+        && data.correct is bool
+        && data.marks is number && data.marks >= 0
+        && data.maxMarks is number && data.maxMarks > 0
+        && data.marks <= data.maxMarks
+        && data.correct == (data.marks == data.maxMarks)
+        && data.transcription is string
+        && data.comment is string
+        && data.resolverUid == request.auth.uid
+        && timeLike(data.resolvedAt)
+        && (data.automated == null || data.automated is map);
+    }
+
+    match /families/{familyId}/pencilReviews/{reviewId} {
+      allow read: if isParent(familyId)
+        || (resource.data.appKey is string && resource.data.ownerUid == request.auth.uid
+          && learnerCanUse(familyId, resource.data.appKey));
+      allow create: if isParent(familyId) && reviewDataValid(familyId, reviewId, request.resource.data);
+      allow update, delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

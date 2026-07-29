@@ -1,2 +1,6 @@
-.fuse_hidden*
-*.lock
+node_modules/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+.emulator-data/
+.DS_Store

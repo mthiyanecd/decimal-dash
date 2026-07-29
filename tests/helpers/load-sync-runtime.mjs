@@ -24,23 +24,28 @@ export function makeFirestore() {
   }
   const api = {
     store, writes,
-    fail: false, failCode: "unavailable",
+    fail: false, failCode: "unavailable", denySetOverwrite: false,
     _maybeFail() { if (this.fail) throw Object.assign(new Error("write failed"), { code: this.failCode }); },
     getFirestore: () => ({}),
     doc: (_db, ...segs) => ({ __t: "doc", path: segs.join("/") }),
     collection: (_db, ...segs) => ({ __t: "collection", path: segs.join("/") }),
-    query: (ref) => ref,
-    orderBy: () => ({ __c: "orderBy" }),
-    limit: () => ({ __c: "limit" }),
+    query: (ref, ...constraints) => Object.assign({}, ref, { constraints }),
+    where: (...args) => ({ __c: "where", args }),
+    orderBy: (...args) => ({ __c: "orderBy", args }),
+    limit: (...args) => ({ __c: "limit", args }),
     serverTimestamp: () => ({ __sentinel: "serverTimestamp" }),
     async getDoc(ref) { return docSnap(ref.path); },
-    async setDoc(ref, data) { api._maybeFail(); writes.push({ op: "set", path: ref.path, data }); store.set(ref.path, JSON.parse(JSON.stringify(data, (k, v) => v && v.__sentinel ? Date.now() : v))); return; },
+    async setDoc(ref, data) {
+      api._maybeFail();
+      if (api.denySetOverwrite && store.has(ref.path)) throw Object.assign(new Error("immutable document"), { code: "permission-denied" });
+      writes.push({ op: "set", path: ref.path, data }); store.set(ref.path, JSON.parse(JSON.stringify(data, (k, v) => v && v.__sentinel ? Date.now() : v))); return;
+    },
     async updateDoc(ref, patch) { writes.push({ op: "update", path: ref.path, patch }); store.set(ref.path, Object.assign({}, store.get(ref.path), patch)); return; },
     async deleteDoc(ref) { writes.push({ op: "delete", path: ref.path }); store.delete(ref.path); return; },
     async addDoc(ref, data) { const id = "auto_" + Math.random().toString(36).slice(2); const path = ref.path + "/" + id; writes.push({ op: "add", path, data }); store.set(path, data); return { id }; },
     onSnapshot(ref, next, err) {
       const m = ref.__t === "doc" ? docListeners : colListeners;
-      m.set(ref.path, { next, err });
+      m.set(ref.path, { next, err, ref });
       return () => m.delete(ref.path);
     },
     async runTransaction(_db, fn) {
@@ -62,10 +67,22 @@ export function makeFirestore() {
 // Load and run the real sync.js. Returns { sync, fs, ctx, localStorage }.
 export async function loadSync(opts = {}) {
   const pathname = opts.pathname || "/";
+  const href = opts.href || ("https://example.test" + pathname);
   const authFail = !!opts.authFail;
   const src = readFileSync(join(ROOT, "sync.js"), "utf8").replace(/^import[\s\S]*?;$/gm, "");
 
   const fs = makeFirestore();
+  const fixtureUser = opts.authUser || { uid: "anon", isAnonymous: true };
+  if (opts.enrolled !== false && fixtureUser.isAnonymous !== false) {
+    fs.store.set("families/zimmy/members/" + String(fixtureUser.uid || "anon"), {
+      familyId: "zimmy", role: "learner", active: true,
+      appKeys: Array.isArray(opts.appKeys) ? opts.appKeys : ["dd1", "ddp2", "histp2"], createdByUid: "parent",
+      createdAt: 1, updatedAt: 1
+    });
+  }
+  for (const [path, data] of Object.entries(opts.initialDocs || {})) {
+    fs.store.set(path, JSON.parse(JSON.stringify(data)));
+  }
   const localStore = new Map(Object.entries(opts.localStorage || {}));
   const localStorage = {
     getItem: k => (localStore.has(k) ? localStore.get(k) : null),
@@ -74,6 +91,11 @@ export async function loadSync(opts = {}) {
     _map: localStore
   };
   const listeners = {};
+  const authCalls = { anonymous: 0, persistence: 0, tokenResults: [], emailLinks: [], completeLinks: [], signOut: 0 };
+  const auth = {
+    currentUser: opts.authUser || null,
+    async authStateReady() {}
+  };
   const windowObj = {
     StudyDashConfig: opts.StudyDashConfig || null,
     addEventListener: (t, fn) => { (listeners[t] = listeners[t] || []).push(fn); },
@@ -88,8 +110,29 @@ export async function loadSync(opts = {}) {
     initializeApp: () => ({}),
     initializeAppCheck: () => ({}),
     ReCaptchaEnterpriseProvider: class {},
-    getAuth: () => ({}),
-    signInAnonymously: () => (authFail ? Promise.reject(Object.assign(new Error("auth"), { code: "auth/failed" })) : Promise.resolve({ user: { uid: "anon" } })),
+    getAuth: () => auth,
+    browserLocalPersistence: { type: "LOCAL" },
+    async setPersistence() { authCalls.persistence++; },
+    async signInAnonymously() {
+      authCalls.anonymous++;
+      if (authFail) throw Object.assign(new Error("auth"), { code: "auth/failed" });
+      auth.currentUser = { uid: "anon", email: null, emailVerified: false, isAnonymous: true };
+      return { user: auth.currentUser };
+    },
+    async sendSignInLinkToEmail(_auth, email, settings) {
+      authCalls.emailLinks.push({ email, settings });
+    },
+    isSignInWithEmailLink: () => !!opts.emailLink,
+    async signInWithEmailLink(_auth, email, link) {
+      authCalls.completeLinks.push({ email, link });
+      auth.currentUser = opts.emailLinkUser || { uid: "parent", email, emailVerified: true, isAnonymous: false };
+      return { user: auth.currentUser };
+    },
+    async signOut() { authCalls.signOut++; auth.currentUser = null; },
+    async getIdTokenResult(user, forceRefresh) {
+      authCalls.tokenResults.push({ uid: user && user.uid, forceRefresh: !!forceRefresh });
+      return { claims: Object.assign({}, opts.authClaims || {}) };
+    },
     getAI: () => ({}),
     GoogleAIBackend: class {},
     getGenerativeModel: () => ({ async generateContent() { return { response: { text: () => "{}" } }; } }),
@@ -100,7 +143,8 @@ export async function loadSync(opts = {}) {
     window: windowObj,
     document: documentObj,
     localStorage,
-    location: { pathname },
+    location: { pathname, href },
+    history: { replaceState() {} },
     navigator: { onLine: true },
     console,
     crypto: webcrypto,
@@ -109,7 +153,7 @@ export async function loadSync(opts = {}) {
     setInterval: () => 0,
     setTimeout,
     clearTimeout,
-    Date, Math, JSON, Promise, Object, Array, Number, String, Boolean, RegExp, Error, Set, Map, parseInt, parseFloat, isNaN, isFinite
+    Date, Math, JSON, Promise, Object, Array, Number, String, Boolean, RegExp, Error, Set, Map, URL, parseInt, parseFloat, isNaN, isFinite
   }, stubs, fs);
   windowObj.window = windowObj;
 
@@ -117,7 +161,7 @@ export async function loadSync(opts = {}) {
   vm.runInContext(src, ctx, { filename: "sync.js" });
   // allow the auth promise + kickoff microtasks to settle
   await new Promise(r => setTimeout(r, 5));
-  return { sync: windowObj.StudyDashSync, fs, ctx, localStorage, window: windowObj, document: documentObj };
+  return { sync: windowObj.StudyDashSync, fs, ctx, localStorage, window: windowObj, document: documentObj, auth, authCalls };
 }
 
 export function readSource(rel) { return readFileSync(join(ROOT, rel), "utf8"); }

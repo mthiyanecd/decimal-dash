@@ -132,9 +132,24 @@ h1 span{color:var(--teal);}
     <button class="x" id="ovlX">✕</button>
     <h2 style="margin:2px 0 2px;">Parent corner</h2>
     <div class="muted" id="syncMsg">Connecting…</div>
-    <div id="pinGate" style="margin:18px 0;"></div>
+    <div id="parentAuth" style="margin:18px 0;"></div>
     <div id="unlocked" style="display:none">
       <div id="dash"></div>
+
+      <div class="sec-h">📱 Enrol learner device</div>
+      <div class="form">
+        <label for="learnerUid">Learner device ID</label>
+        <input id="learnerUid" autocomplete="off" placeholder="Paste the UID shown on the learner iPad">
+        <label for="learnerDeviceLabel">Device label</label>
+        <input id="learnerDeviceLabel" autocomplete="off" placeholder="e.g. Zimmy's iPad">
+        <label><input type="checkbox" id="transferProgress"> This is a replacement device: transfer existing progress for all three apps</label>
+        <button class="btn" id="enrolDevice">Enrol for all three apps</button>
+        <button class="btn ghost" id="disableDevice">Disable this device</button>
+        <div class="muted" id="deviceMsg" style="margin-top:8px"></div>
+      </div>
+
+      <div class="sec-h">✍️ Pencil answers to review</div>
+      <div class="alist" id="pencilReviewList"></div>
 
       <div class="sec-h">📌 Assign a task</div>
       <div class="form" id="assignForm">
@@ -221,6 +236,7 @@ APPS.forEach(group=>{
 });
 </script>
 
+<script src="../config.js"></script>
 <script type="module" src="../sync.js"></script>
 
 <script type="module">
@@ -242,23 +258,28 @@ function currentData(){
     if(r&&l) out[k]= (r.updated||0) >= lastTs(l) ? r : l; else out[k]= r||l||null; }
   return out;
 }
-function pctOfSession(S,i){ const es=(S.log||[]).filter(e=>e.session===i); if(!es.length) return null; let m=0,mx=0; es.forEach(e=>{ m+=e.marks||0; mx+=e.maxMarks||0; }); return mx? m/mx : null; }
+function pctOfSession(S,i){ const es=(S.log||[]).filter(e=>e.session===i&&(e.correct===true||e.correct===false)); if(!es.length) return null; let m=0,mx=0; es.forEach(e=>{ m+=e.marks||0; mx+=e.maxMarks||0; }); return mx? m/mx : null; }
 function summarise(key,S){
   if(!S) return null;
   const done=S.done||[]; const total=done.length; const completed=done.filter(Boolean).length;
   const log=S.log||[]; const st=S.stats||null;
-  const attempts=st? st.attempts : log.length;
-  const correctRate= attempts? (st? st.correct/attempts : log.filter(e=>e.correct).length/attempts) : null;
-  const mock=(S.mockScore!=null)? {score:S.mockScore,total:S.mockTotal||40} : null;
+  const graded=log.filter(e=>e&&(e.correct===true||e.correct===false));
+  const attempts=st? st.attempts : graded.length;
+  const correctRate= attempts? (st? st.correct/attempts : graded.filter(e=>e.correct===true).length/attempts) : null;
+  const mockScore=Number(S.mockScore), mockTotal=Number(S.mockTotal||40);
+  const mock=(S.mockScore!=null&&Number.isFinite(mockScore)&&Number.isFinite(mockTotal)&&mockTotal>0)
+    ? {score:mockScore,total:mockTotal} : null;
   const mastery=S.mastery||{};
   let frag=0; const pcts=[];
   for(let i=0;i<total;i++){ if(done[i]){ const ss=st&&st.sessions? st.sessions[i] : null;
+    const pending=ss&&ss.pendingReviews!=null?ss.pendingReviews:log.filter(e=>e&&e.session===i&&e.correct===null&&e.needsParentReview===true).length;
+    if(pending>0)continue;
     const p= ss? (ss.maxMarks? ss.marks/ss.maxMarks : null) : pctOfSession(S,i);
     const pc=(p==null?0.6:p); pcts.push(pc); let f=2; if(pc>=0.7)f++; if(pc>=0.9)f++; frag+=f; } }
   const avgPct= pcts.length? pcts.reduce((a,b)=>a+b,0)/pcts.length : null;
   let keys=0; if(mock){ const mp=mock.score/mock.total; keys= mp>=0.9?4:mp>=0.8?3:mp>=0.7?2:mp>=0.6?1:(completed?1:0); }
   const weak=Object.entries(mastery).filter(([k,v])=>v<65).sort((a,b)=>a[1]-b[1]).slice(0,3).map(([k,v])=>({skill:k,val:v}));
-  const pendingReviews=(st&&st.pendingReviews)||(log.filter(e=>e&&e.correct===null&&e.needsParentReview).length);
+  const pendingReviews=(st&&st.pendingReviews!=null)?(st.pendingReviews??0):(log.filter(e=>e&&e.correct===null&&e.needsParentReview).length);
   return {key,name:S.name||'',total,completed,attempts,correctRate,mock,mastery,frag,avgPct,keys,weak,pendingReviews,retry:(S.retryQueue||[]).length,ts:lastTs(S)};
 }
 function collectionLevel(a){ if(a==null) return 'Spark'; return a>=0.9?'Crown':a>=0.75?'Star':'Spark'; }
@@ -276,7 +297,7 @@ function vaultCalc(sums){
   const availableChests=Math.max(0,earnedChests-opened);
   const overall= avgs.length? avgs.reduce((a,b)=>a+b,0)/avgs.length : null;
   const into=frag%4; const toNext=(into===0&&frag>0)?0:4-into;
-  return {frag,into,toNext,earnedChests,availableChests,totalKeys,availableKeys,overall,level:collectionLevel(overall)};
+  return {frag,into,toNext,earnedChests,availableChests,mockKeys,totalKeys,availableKeys,overall,level:collectionLevel(overall)};
 }
 
 function renderVault(sums){
@@ -360,13 +381,103 @@ function renderDash(data,sums){
     const pics=(S.log||[]).filter(e=>e.hasPng&&e.ts).slice(-8).reverse();
     if(pics.length){
       html+='<details style="margin-top:10px"><summary style="cursor:pointer;color:var(--purple-d);font-weight:700;font-size:13px">🖼️ View her handwriting ('+pics.length+')</summary><div class="picwrap">'
-        + pics.map(p=>'<button class="mini n picbtn" data-key="'+k+'" data-ts="'+p.ts+'">'+esc(p.skill||p.type||'work')+'</button>').join(' ')
+        + pics.map(p=>'<button class="mini n picbtn" data-key="'+k+'" data-ts="'+esc(p.ts)+'">'+esc(p.skill||p.type||'work')+'</button>').join(' ')
         + '<div class="picview"></div></div></details>';
     }
     card.innerHTML=html; dash.appendChild(card);
   });
   if(!any) dash.innerHTML='<div class="muted" style="margin-top:16px">No synced activity yet. Once she opens an app on her iPad and finishes a question, it will appear here within a few seconds.</div>';
   dash.querySelectorAll('.picbtn').forEach(b=>b.onclick=()=>{ const wrap=b.closest('.picwrap'); loadImage(b.getAttribute('data-key'),Number(b.getAttribute('data-ts')),wrap.querySelector('.picview')); });
+}
+
+// Render all learner/model-controlled evidence with textContent. Parent choices
+// are immutable review documents; the learner app applies each result once.
+function renderPencilReviews(data){
+  const el=$('pencilReviewList');
+  if(!el||!sync)return;
+  if(el.contains(document.activeElement)||el.querySelector('.picview img'))return;
+  el.textContent='';
+  const resolved=new Set((sync.getPencilReviews()||[]).map(r=>String(r.appKey||'')+':'+String(r.attemptId||'')));
+  const items=[];
+  for(const appKey of KEYS){
+    const state=data[appKey];
+    for(const a of ((state&&state.log)||[])){
+      if(!(a&&a.pencil===true&&a.needsParentReview===true&&a.correct===null))continue;
+      if(resolved.has(appKey+':'+a.id))continue;
+      items.push({appKey,attempt:a});
+    }
+  }
+  items.sort((x,y)=>(y.attempt.ts||0)-(x.attempt.ts||0));
+  if(!items.length){
+    const empty=document.createElement('div');empty.className='muted';
+    empty.textContent='No Pencil answers are waiting for review.';el.appendChild(empty);return;
+  }
+  const plain=s=>String(s==null?'':s).replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim();
+  const addText=(parent,cls,text)=>{const node=document.createElement('div');node.className=cls;node.textContent=text;parent.appendChild(node);return node;};
+  const button=(cls,label)=>{const b=document.createElement('button');b.type='button';b.className='mini '+cls;b.textContent=label;return b;};
+  items.forEach(item=>{
+    const a=item.attempt,g=a.grading||{},meta=META[item.appKey]||{app:item.appKey,emoji:'📘'};
+    const maxMarks=Math.max(1,Number(a.maxMarks)||1),autoScore=g.score;
+    const autoValid=typeof g.score==='number'&&Number.isFinite(autoScore)&&autoScore>=0&&autoScore<=maxMarks;
+    const card=document.createElement('div');card.className='dcard';
+    addText(card,'dhead',meta.emoji+' '+meta.app+' · '+maxMarks+' mark'+(maxMarks===1?'':'s'));
+    addText(card,'dmeta',(a.skill||a.type||'Pencil work')+' · '+timeAgo(a.ts));
+    addText(card,'',plain(a.prompt)||'Written or drawn answer');
+    if(g.status==='pending')addText(card,'issue','AI marking was still in progress when this was synced. Please mark it yourself.');
+    else if(g.error)addText(card,'issue','Automated marking was unavailable ('+plain(g.error)+'). Please mark it yourself.');
+    else addText(card,'dmeta','Automated result: '+(autoValid?(autoScore+'/'+maxMarks):'no valid score')
+      +(Number.isFinite(Number(g.confidence))?' · confidence '+Math.round(Number(g.confidence)*100)+'%':'')
+      +(g.verdict?' · '+plain(g.verdict):''));
+    if(g.transcription)addText(card,'dmeta','Read as: '+plain(g.transcription));
+    if(g.feedback)addText(card,'dmeta','Feedback: '+plain(g.feedback));
+    if(Array.isArray(g.criteria))g.criteria.forEach(c=>{
+      if(!c||typeof c!=='object')return;
+      addText(card,'dmeta','• '+plain(c.label||'Criterion')+(Number.isFinite(Number(c.marks))?' · '+Number(c.marks)+' mark(s)':'')+(c.met===true?' · met':c.met===false?' · not met':''));
+    });
+    const markScheme=a.rubric&&a.rubric.questionMarkScheme;
+    if(markScheme)addText(card,'dmeta','Mark scheme: '+plain(markScheme));
+
+    const pic=document.createElement('div');pic.className='picview';card.appendChild(pic);
+    const show=button('n','View handwriting');
+    show.onclick=()=>{show.disabled=true;loadImage(item.appKey,item.attempt.ts,pic);};
+    card.appendChild(show);
+
+    const form=document.createElement('div');form.className='form';form.style.marginTop='10px';
+    const marksLabel=document.createElement('label');marksLabel.textContent='Corrected marks';form.appendChild(marksLabel);
+    const marks=document.createElement('input');marks.type='number';marks.min='0';marks.max=String(maxMarks);marks.step='0.5';marks.value=autoValid?String(autoScore):'';form.appendChild(marks);
+    const transLabel=document.createElement('label');transLabel.textContent='Corrected transcription (optional)';form.appendChild(transLabel);
+    const transcription=document.createElement('textarea');transcription.rows=2;transcription.value=plain(g.transcription||'');form.appendChild(transcription);
+    const commentLabel=document.createElement('label');commentLabel.textContent='Parent comment (optional)';form.appendChild(commentLabel);
+    const comment=document.createElement('textarea');comment.rows=2;form.appendChild(comment);
+    const controls=document.createElement('div');controls.style.cssText='display:flex;gap:7px;flex-wrap:wrap;margin-top:10px';form.appendChild(controls);
+    const status=addText(form,'muted','');
+    const allButtons=[];
+    const resolve=async(payload,clicked)=>{
+      allButtons.forEach(b=>b.disabled=true);status.textContent='Saving decision…';
+      try{
+        const result=await sync.resolvePencilReview(Object.assign({appKey:item.appKey,attemptId:a.id,
+          comment:comment.value,transcription:transcription.value},payload));
+        if(result.status==='conflict'){
+          status.textContent='This answer already has a different final decision. Reload to see it.';
+          allButtons.forEach(b=>b.disabled=false);return;
+        }
+        status.textContent=result.status==='duplicate'?'This decision was already saved.':'Decision saved. Her marks update when the learner app syncs.';
+        card.dataset.resolved='true';
+      }catch(e){
+        const msg=String(e&&e.message||e);
+        status.textContent=/conflict/.test(msg)?'This answer already has a different final decision. Reload to see it.':/marks-range|marks-required/.test(msg)?'Enter marks between 0 and '+maxMarks+'.':'Could not save the decision. Check the connection and try again.';
+        allButtons.forEach(b=>b.disabled=false);clicked.disabled=false;
+      }
+    };
+    if(autoValid){const approve=button('g','Approve AI '+autoScore+'/'+maxMarks);approve.onclick=()=>resolve({decision:'approve'},approve);allButtons.push(approve);controls.appendChild(approve);}
+    const correct=button('n','Save corrected marks');correct.onclick=()=>{
+      const n=Number(marks.value);if(!Number.isFinite(n)||n<0||n>maxMarks){status.textContent='Enter marks between 0 and '+maxMarks+'.';return;}
+      resolve({decision:'correct',marks:n},correct);
+    };allButtons.push(correct);controls.appendChild(correct);
+    const full=button('g','Override: full marks');full.onclick=()=>resolve({decision:'override',correct:true},full);allButtons.push(full);controls.appendChild(full);
+    const zero=button('r','Override: 0 marks');zero.onclick=()=>resolve({decision:'override',correct:false},zero);allButtons.push(zero);controls.appendChild(zero);
+    card.appendChild(form);el.appendChild(card);
+  });
 }
 
 function renderAssignList(){
@@ -376,8 +487,8 @@ function renderAssignList(){
   el.innerHTML=list.map(a=>{ const m=META[a.appKey]||{emoji:'📘'}; const due=[a.dueDate,a.dueTime].filter(Boolean).join(' ');
     return '<div class="row '+(a.status==='done'?'done':'')+'"><span>'+m.emoji+'</span>'
       +'<div class="tt">'+esc(a.note||a.taskType)+'<div class="due">'+esc(a.taskType)+(due?' · due '+esc(due):'')+(a.minutes?' · '+esc(a.minutes)+' min':'')+'</div></div>'
-      +(a.status==='done'?'<button class="mini n" data-reopen="'+a.id+'">reopen</button>':'<button class="mini g" data-done="'+a.id+'">done</button>')
-      +'<button class="mini r" data-del="'+a.id+'">✕</button></div>';
+      +(a.status==='done'?'<button class="mini n" data-reopen="'+esc(a.id)+'">reopen</button>':'<button class="mini g" data-done="'+esc(a.id)+'">done</button>')
+      +'<button class="mini r" data-del="'+esc(a.id)+'">✕</button></div>';
   }).join('');
   el.querySelectorAll('[data-done]').forEach(b=>b.onclick=()=>sync.setAssignment(b.getAttribute('data-done'),{status:'done',doneTs:Date.now()}));
   el.querySelectorAll('[data-reopen]').forEach(b=>b.onclick=()=>sync.setAssignment(b.getAttribute('data-reopen'),{status:'todo'}));
@@ -387,7 +498,7 @@ function renderAssignList(){
 function renderCatalogue(){
   const el=$('catList'); const cat=(sync.getCatalogue()||[]).slice().sort((a,b)=>['Spark','Star','Crown'].indexOf(a.level)-['Spark','Star','Crown'].indexOf(b.level));
   if(!cat.length){ el.innerHTML='<div class="muted">No rewards yet. Add a few so she has something to unlock.</div>'; return; }
-  el.innerHTML=cat.map(c=>'<div class="row"><span class="lvltag">'+esc(c.level)+'</span><div class="tt">'+esc(c.description)+'</div><button class="mini r" data-delc="'+c.id+'">✕</button></div>').join('');
+  el.innerHTML=cat.map(c=>'<div class="row"><span class="lvltag">'+esc(c.level)+'</span><div class="tt">'+esc(c.description)+'</div><button class="mini r" data-delc="'+esc(c.id)+'">✕</button></div>').join('');
   el.querySelectorAll('[data-delc]').forEach(b=>b.onclick=()=>{ if(confirm('Remove this reward?')) sync.removeCatalogueItem(b.getAttribute('data-delc')); });
 }
 
@@ -422,7 +533,7 @@ function renderRedemptions(){
     tt.appendChild(badgeFor(st));
     row.appendChild(lvl); row.appendChild(tt);
     if(st==='pending'){
-      row.appendChild(btn('g','approve',function(){ return doAction(this,r.id,()=>sync.approveRedemption({requestId:r.id}),'approving…'); }));
+      row.appendChild(btn('g','approve',function(){ return doAction(this,r.id,()=>sync.approveRedemption({requestId:r.id,learnerKeys:lastVC.mockKeys}),'approving…'); }));
       row.appendChild(document.createTextNode(' '));
       row.appendChild(btn('r','reject',function(){ return doAction(this,r.id,()=>sync.rejectRedemption({requestId:r.id}),'rejecting…'); }));
     } else if(st==='approved'){
@@ -432,12 +543,9 @@ function renderRedemptions(){
   });
 }
 
-// PIN gate
-function storedPins(data){ const out=[]; for(const k of KEYS){ if(data[k]&&data[k].pin) out.push(String(data[k].pin)); } return out; }
-function storedPinHashes(data){ const out=[]; for(const k of KEYS){ if(data[k]&&data[k].pinHash) out.push(String(data[k].pinHash)); } return out; }
-// Every expected app must have RESOLVED (ready|empty|error) before we evaluate
-// the PIN gate. This closes the fail-open race where one early document with no
-// PIN unlocked the whole family, and stops an all-empty family loading forever.
+// State readiness controls summary loading only. Parent authorization comes
+// solely from Firebase verified-email identity; learner PINs never unlock Hub
+// mutations or family data.
 function readiness(){
   if(sync&&sync.getStateStatus){
     const st=sync.getStateStatus(); const vals=KEYS.map(k=>st[k]||'loading');
@@ -446,24 +554,52 @@ function readiness(){
   }
   return { allResolved:false, anyError:false };
 }
-async function sha256(str){ const b=new TextEncoder().encode(String(str)); const h=await crypto.subtle.digest("SHA-256",b); return [...new Uint8Array(h)].map(x=>x.toString(16).padStart(2,"0")).join(""); }
-let unlocked=false;
 function renderGate(data,sums){
-  const gate=$('pinGate');
-  const plains=storedPins(data), hashes=storedPinHashes(data);
-  const hasPin=plains.length||hashes.length; const r=readiness();
-  if(unlocked || (r.allResolved && !hasPin)){ gate.innerHTML=''; $('unlocked').style.display='block';
-    renderDash(data,sums); renderAssignList(); renderCatalogue(); renderRedemptions();
-    const v=sync.getVault(); $('curExamKeys').textContent=(v&&v.examKeys)||0; return; }
+  const gate=$('parentAuth');
+  const identity=sync&&sync.getIdentity?sync.getIdentity():{isParent:false,parentConfigured:false,linkPending:false};
+  if(identity.isParent){
+    gate.textContent='';
+    const row=document.createElement('div'); row.className='form';
+    const who=document.createElement('div'); who.className='muted'; who.textContent='Signed in as '+identity.email+'. Parent controls are unlocked.';
+    const out=document.createElement('button'); out.className='btn ghost'; out.id='parentSignOut'; out.textContent='Sign out of Parent Corner';
+    out.onclick=async()=>{ out.disabled=true; try{ await sync.signOutParent(); location.reload(); }catch(e){ out.disabled=false; } };
+    row.appendChild(who); row.appendChild(out); gate.appendChild(row);
+    $('unlocked').style.display='block';
+    const r=readiness(); if(!r.allResolved) setConnMsg('loading');
+    renderDash(data,sums); renderPencilReviews(data); renderAssignList(); renderCatalogue(); renderRedemptions();
+    const v=sync.getVault(); $('curExamKeys').textContent=(v&&v.examKeys)||0; return;
+  }
   $('unlocked').style.display='none';
-  if(!r.allResolved){ gate.innerHTML='<div class="muted">Loading family settings…</div>'; return; }
-  if(r.anyError && !hasPin){ gate.innerHTML='<div class="muted">Could not load some family data. <button class="btn" style="margin-top:0" onclick="location.reload()">Retry</button></div>'; return; }
-  if(gate.querySelector('#pinIn')) return; /* gate already showing … don't wipe a half-typed PIN on refresh */
-  gate.innerHTML='<div class="muted">Enter the parent PIN (the 4-digit code you set inside an app).</div>'
-    +'<div style="margin-top:10px"><input class="pininput" id="pinIn" inputmode="numeric" maxlength="8" type="password"> '
-    +'<button class="btn" style="margin-top:0" id="pinGo">Unlock</button></div>'
-    +'<div class="muted" id="pinErr" style="color:var(--warn);margin-top:8px"></div>';
-  $('pinGo').onclick=async()=>{ const val=$('pinIn').value; let ok=plains.includes(val); if(!ok&&hashes.length){ try{ ok=hashes.includes(await sha256(val)); }catch(_){} } if(ok){ unlocked=true; renderGate(data,sums); } else $('pinErr').textContent='That code did not match.'; };
+  if(gate.querySelector('#parentEmail')) return;
+  gate.innerHTML='<div class="form" id="parentAuthForm">'
+    +'<div class="muted" id="parentAuthIntro"></div>'
+    +'<label for="parentEmail">Parent email</label><input id="parentEmail" type="email" autocomplete="email" placeholder="parent@example.com">'
+    +'<button class="btn" id="parentSignIn">'+(identity.linkPending?'Complete sign-in':'Send sign-in link')+'</button>'
+    +'<div class="muted" id="parentAuthMsg" style="margin-top:8px"></div></div>';
+  const intro=$('parentAuthIntro');
+  if(!identity.parentConfigured) intro.textContent='Parent access needs one final setup value: StudyDashConfig.parentEmails. No parent controls are exposed until it is configured.';
+  else if(identity.email) intro.textContent='Signed in as '+identity.email+', but that verified email is not authorised as a parent.';
+  else if(identity.linkPending) intro.textContent='Enter the same parent email used to request this link, then complete sign-in.';
+  else intro.textContent='Use the verified parent email. We will send a passwordless one-time sign-in link.';
+  if(identity.anonymous&&identity.uid){
+    const device=document.createElement('div'); device.className='muted'; device.style.cssText='margin-top:10px;word-break:break-all';
+    device.textContent='Learner device ID: '+identity.uid+'. Copy this ID for enrolment from a separate parent device. Do not sign in to Parent Corner on the learner iPad because that replaces its anonymous learner session.';
+    $('parentAuthForm').appendChild(device);
+  }
+  const action=$('parentSignIn');
+  action.onclick=async()=>{
+    const email=$('parentEmail').value.trim(), msg=$('parentAuthMsg');
+    if(!email){ msg.textContent='Enter the parent email first.'; return; }
+    action.disabled=true; msg.textContent=identity.linkPending?'Completing sign-in…':'Sending link…';
+    try{
+      if(identity.linkPending){ await sync.completeParentSignInIfPresent(email); msg.textContent='Signed in.'; location.reload(); }
+      else { await sync.startParentSignIn(email); msg.textContent='Link sent. Open it in Safari on this same device.'; }
+    }catch(e){
+      const text=String(e&&e.message||e);
+      msg.textContent=/not-configured/.test(text)?'Parent email is not configured yet.':/not-authorised/.test(text)?'That email is not authorised for Parent Corner.':'Sign-in could not be completed. Try requesting a fresh link.';
+      action.disabled=false;
+    }
+  };
 }
 
 // Chest opening (Choice mode)
@@ -476,7 +612,7 @@ function openChest(){
   items=items.map(x=>[Math.random(),x]).sort((a,b)=>a[0]-b[0]).map(p=>p[1]).slice(0,3);
   if(!items.length){ showChest('<h2>🔓 Open a chest</h2><div class="muted">Ask Dad to add some rewards to the treasure list first.</div><button class="btn" id="chestOk">OK</button>'); $('chestOk').onclick=hideChest; return; }
   const html='<h2>🔓 Open a '+esc(lastVC.level)+' chest</h2><div class="muted">Pick your reward:</div>'
-    + items.map(it=>'<button class="rewardpick" data-id="'+it.id+'" data-desc="'+esc(it.description)+'">'+esc(it.description)+'</button>').join('')
+    + items.map(it=>'<button class="rewardpick" data-id="'+esc(it.id)+'" data-desc="'+esc(it.description)+'">'+esc(it.description)+'</button>').join('')
     + '<button class="btn ghost" id="chestCancel">Not yet</button>';
   showChest(html);
   document.querySelectorAll('.rewardpick').forEach(b=>b.onclick=()=>chooseReward(b.getAttribute('data-id'),b.getAttribute('data-desc'),lastVC.level));
@@ -514,6 +650,7 @@ function setConnMsg(phase){
     loading:'<span class="live-dot"></span>Connecting to Firebase…',
     connected:'<span class="live-dot"></span>Live sync connected. Updates appear automatically.',
     syncing:'<span class="live-dot"></span>Syncing…',
+    'local-only':'📱 This device is not enrolled yet. Study progress remains safely on this device; copy the Learner device ID below and enrol it from the parent device.',
     offline:'⚠️ You appear to be offline. The Hub reconnects automatically when the connection returns.',
     'permission-denied':'⛔ The database refused access. Ask the administrator to check the Firestore security rules for this family.',
     'auth-failed':'⛔ Could not sign in to Firebase. Reload the page; if it persists, sign-in may be blocked on this network.',
@@ -521,18 +658,27 @@ function setConnMsg(phase){
   };
   m.innerHTML=map[phase]||map.loading;
 }
+function pendingAwardId(label,keys){
+  const storageKey='sdPendingParentAward';
+  try{const old=JSON.parse(localStorage.getItem(storageKey)||'null');if(old&&old.label===label&&old.keys===keys&&old.id)return old.id;}catch(_){}
+  const id='award_'+(globalThis.crypto&&crypto.randomUUID?crypto.randomUUID():Date.now()+'_'+Math.random().toString(36).slice(2));
+  try{localStorage.setItem(storageKey,JSON.stringify({id,label,keys}));}catch(_){}
+  return id;
+}
 let bootTries=0;
 function boot(){
   if(!window.StudyDashSync){
     // Bounded startup wait (~12s) then an actionable Retry, instead of polling forever.
-    if(++bootTries>100){ $('syncMsg').innerHTML='⚠️ Sync did not start. <button class="btn" style="margin-top:0" id="retryBoot">Retry</button>'; const rb=$('retryBoot'); if(rb) rb.onclick=()=>{ bootTries=0; boot(); }; return; }
+    if(++bootTries>100){ $('syncMsg').innerHTML='⚠️ Sync did not start. <button class="btn" style="margin-top:0" id="retryBoot">Retry</button>'; const rb=$('retryBoot'); if(rb) rb.onclick=()=>location.reload(); return; }
     setTimeout(boot,120); return;
   }
   sync=window.StudyDashSync;
   setConnMsg(sync.getStatus? sync.getStatus() : 'connected');
   if(sync.onStatus) sync.onStatus(setConnMsg);
+  if(sync.onIdentity) sync.onIdentity(()=>refresh());
   if(sync.onStateStatus) sync.onStateStatus(()=>refresh());
   if(sync.onSubmissions) sync.onSubmissions(()=>refresh());
+  if(sync.onPencilReviews) sync.onPencilReviews(()=>refresh());
   sync.onState(()=>refresh()); sync.onAssignments(()=>refresh()); sync.onVault(()=>refresh()); sync.onCatalogue(()=>refresh()); sync.onRedemptions(()=>refresh());
   $('afGo').onclick=async()=>{
     const note=$('afNote').value.trim(); if(!note){ $('afMsg').textContent='Add a short note so she knows what to do.'; return; }
@@ -541,8 +687,11 @@ function boot(){
     }catch(e){ $('afMsg').textContent='Could not save. Check the connection.'; }
   };
   $('cfGo').onclick=async()=>{ const d=$('cfDesc').value.trim(); if(!d) return; try{ await sync.addCatalogueItem({level:$('cfLevel').value, description:d}); $('cfDesc').value=''; }catch(e){} };
-  $('kGo').onclick=async()=>{ const label=$('kLabel').value.trim()||'Exam milestone'; const n=Number($('kNum').value)||0; if(n<1){ $('kMsg').textContent='Enter at least 1 Key.'; return; }
-    try{ await sync.awardKeys(label,n); $('kLabel').value=''; $('kMsg').textContent='Awarded '+n+' Key'+(n>1?'s':'')+'.'; setTimeout(()=>$('kMsg').textContent='',2500);}catch(e){ $('kMsg').textContent='Could not save.'; } };
+  $('kGo').onclick=async()=>{ const label=$('kLabel').value.trim()||'Exam milestone'; const n=Number($('kNum').value)||0,b=$('kGo'); if(n<1){ $('kMsg').textContent='Enter at least 1 Key.'; return; }
+    const requestId=pendingAwardId(label,n);b.disabled=true;
+    try{ await sync.awardKeys(label,n,requestId); localStorage.removeItem('sdPendingParentAward'); $('kLabel').value=''; $('kMsg').textContent='Awarded '+n+' Key'+(n>1?'s':'')+'.'; setTimeout(()=>$('kMsg').textContent='',2500);}catch(e){ $('kMsg').textContent='Could not save. Retry uses the same award record.'; }finally{b.disabled=false;} };
+  $('enrolDevice').onclick=async()=>{ const uid=$('learnerUid').value.trim(), msg=$('deviceMsg'),apps=['dd1','ddp2','histp2']; if(!uid){ msg.textContent='Paste the learner device ID first.'; return; } try{ const r=await sync.enrolLearnerDevice(uid,$('learnerDeviceLabel').value,apps); if($('transferProgress').checked){ const moved=[]; for(const app of apps){ const t=await sync.transferLearnerState(app,uid); if(t.status==='transferred')moved.push(app); } msg.textContent=(r.status==='updated'?'Device access updated.':'Device enrolled.')+' Progress transfer recorded for '+moved.length+' app'+(moved.length===1?'':'s')+'.'; }else msg.textContent=r.status==='updated'?'Device access updated.':'Device enrolled.'; }catch(e){ msg.textContent='Could not enrol or transfer that device. Check the ID and parent access.'; } };
+  $('disableDevice').onclick=async()=>{ const uid=$('learnerUid').value.trim(), msg=$('deviceMsg'); if(!uid){ msg.textContent='Paste the learner device ID first.'; return; } try{ await sync.disableLearnerDevice(uid); msg.textContent='Device disabled.'; }catch(e){ msg.textContent='Could not disable that device.'; } };
   refresh();
 }
 boot();

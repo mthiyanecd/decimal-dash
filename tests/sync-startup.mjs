@@ -8,7 +8,13 @@ assert.ok(/doc\(db,\s*"families",\s*FAMILY,\s*"vault",\s*"main"\)/.test(src), "v
 assert.ok(!/doc\(db,\s*"families",\s*FAMILY,\s*"vault"\)/.test(src), "must not use the invalid three-segment vault reference");
 assert.ok(/"submissions"/.test(src), "submissions collection reference required");
 
-const { sync, fs } = await loadSync({ localStorage: { dd1: JSON.stringify({ name: "Z", pin: "1234", log: [{ id: "a1", correct: true, marks: 1, maxMarks: 1, session: 0 }] }) } });
+const parentEmail = "parent@example.test";
+const { sync, fs } = await loadSync({
+  authUser: { uid: "parent", email: parentEmail, emailVerified: true, isAnonymous: false },
+  authClaims: { familyId: "zimmy", role: "parent" },
+  StudyDashConfig: { parentEmails: [parentEmail] },
+  localStorage: { dd1: JSON.stringify({ name: "Z", log: [{ id: "a1", correct: true, marks: 1, maxMarks: 1, session: 0 }] }) }
+});
 await sync.syncNow();
 await sync.submitSession("sess-1", { session: 0, summary: "done" });
 await sync.awardKeys("test", 1, "req-1");

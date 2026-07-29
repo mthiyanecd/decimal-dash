@@ -3,7 +3,11 @@
 import assert from "node:assert";
 import { loadSync } from "./helpers/load-sync-runtime.mjs";
 
-const { sync, fs } = await loadSync({ pathname: "/hub/" });
+const { sync, fs } = await loadSync({
+  pathname: "/hub/",
+  authUser: { uid: "parent", email: "parent@example.test", emailVerified: true, isAnonymous: false },
+  authClaims: { familyId: "zimmy", role: "parent" }
+});
 assert.deepEqual(sync.getStateStatus(), { dd1: "loading", ddp2: "loading", histp2: "loading" });
 
 fs.emitDoc("families/zimmy/state/dd1", { name: "Zim", app: "DecimalDash" });   // ready

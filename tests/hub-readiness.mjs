@@ -18,6 +18,8 @@ assert.ok(/refused access/.test(h) && /'permission-denied'/.test(h), "distinct p
 assert.ok(/Could not sign in/.test(h) && /'auth-failed'/.test(h), "distinct auth-failed copy");
 // Bounded startup wait + Retry instead of polling forever.
 assert.ok(/bootTries/.test(h) && /Retry/.test(h), "bounded startup wait with a Retry control");
+assert.match(h, /retryBoot[\s\S]{0,180}location\.reload\(\)/,
+  "startup Retry must reload the page instead of polling a permanently failed module");
 
 // Submissions "last session received" view + transactional reward + pending review.
 assert.ok(/onSubmissions/.test(h) && /Last session received/.test(h), "submissions receipt view required");

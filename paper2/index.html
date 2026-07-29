@@ -1267,11 +1267,11 @@ function ep4d(){ return [makeItem('convMC'),makeItem('capCmp'),makeItem('tons',{
 <script>
 "use strict";
 /* ============ state ============ */
-const DEFAULT={name:'',pin:'',session:0,step:0,qi:0,cur:null,log:[],retryQueue:[],
+const DEFAULT={name:'',session:0,step:0,qi:0,cur:null,log:[],retryQueue:[],
   mastery:{s1:50,s2:50,s3:50,s4:50,s5:50,s6:50,s7:50,s8:50},
   streak:0,best:0,badges:[],stars:0,stretch:[false,false,false,false,false,false,false,false,false],
   mockScore:null,mockTotal:40,done:[false,false,false,false,false,false,false,false,false],overrides:{},comments:{},
-  sessionSubmissions:{},schemaVersion:1};
+  sessionSubmissions:{},reviewEffects:{},progressBase:null,lastMockStart:0,schemaVersion:1};
 const SCHEMA=1;
 let S=load();
 function cleanName(s){ return String(s||'').trim().replace(/[\s\-−–—]+$/,''); }
@@ -1284,10 +1284,13 @@ function hydrateState(saved){
       else base[k]=sv; }
     if(base.mastery&&DEFAULT.mastery){ for(const sk in DEFAULT.mastery){ let v=Number(base.mastery[sk]); if(!isFinite(v)) v=DEFAULT.mastery[sk]; base.mastery[sk]=Math.max(0,Math.min(100,v)); } }
   }
+  if(!base.progressBase||typeof base.progressBase!=='object'||!base.progressBase.mastery){
+    base.progressBase={mastery:Object.assign({},base.mastery),stars:Number(base.stars)||0,streak:Number(base.streak)||0,best:Number(base.best)||0};
+  }
   base.name=cleanName(base.name); base.schemaVersion=SCHEMA; return base;
 }
 function load(){ try{ const j=localStorage.getItem('ddp2'); if(j){ const o=hydrateState(JSON.parse(j)); return o; } }catch(e){}
-  return JSON.parse(JSON.stringify(DEFAULT)); }
+  return hydrateState(null); }
 let saveFailed=false;
 function notifySaveFailed(){ try{ let b=document.getElementById('saveWarn'); if(!b){ b=document.createElement('div'); b.id='saveWarn'; b.style.cssText='position:fixed;left:8px;right:8px;bottom:8px;z-index:99999;background:#c23a4b;color:#fff;padding:10px 12px;border-radius:12px;font:14px -apple-system,sans-serif;text-align:center'; document.body.appendChild(b);} b.textContent='⚠️ Progress could not be saved on this device. Please tell Dad.'; }catch(_){} }
 function save(){ try{ localStorage.setItem('ddp2',JSON.stringify(S)); saveFailed=false; return true; }
@@ -1309,9 +1312,22 @@ function confidenceItems(n){
   const ms=masteredSkills(); const src=ms.length?ms:weakOrder().slice(-3);
   const items=[];for(let i=0;i<n;i++)items.push(makeFromSkill(pick(src),2,false));
   return items; }
-function updateMastery(skill,firstTry,correct,hints){
-  let d; if(correct&&firstTry&&!hints)d=14; else if(correct&&firstTry)d=8; else if(correct)d=5; else d=-12;
-  S.mastery[skill]=Math.max(0,Math.min(100,S.mastery[skill]+d)); }
+function masteryDelta(firstTry,correct,hints){return correct&&firstTry&&!hints?14:correct&&firstTry?8:correct?5:-12;}
+function updateMastery(skill,firstTry,correct,hints){S.mastery[skill]=Math.max(0,Math.min(100,S.mastery[skill]+masteryDelta(firstTry,correct,hints)));}
+function replayProgressEffects(){
+  const b=S.progressBase, mastery=Object.assign({},b.mastery);let stars=Math.max(0,Number(b.stars)||0),streak=Math.max(0,Number(b.streak)||0),best=Math.max(streak,Number(b.best)||0);
+  S.log.map((attempt,index)=>({attempt,index})).filter(x=>x.attempt&&x.attempt.progressEffect).sort((a,b)=>{
+    const at=Number(a.attempt.ts),bt=Number(b.attempt.ts),av=Number.isFinite(at)?at:a.index,bv=Number.isFinite(bt)?bt:b.index;return av-bv||a.index-b.index;
+  }).forEach(({attempt})=>{const e=attempt.progressEffect,d=Number(e.masteryDelta);
+    if(attempt.skill&&Number.isFinite(d)&&Number.isFinite(Number(mastery[attempt.skill])))mastery[attempt.skill]=Math.max(0,Math.min(100,Number(mastery[attempt.skill])+d));
+    if(Number.isFinite(Number(e.stars)))stars=Math.max(0,stars+Number(e.stars));
+    if(e.streak==='increment'){streak++;best=Math.max(best,streak);}else if(e.streak==='reset')streak=0;
+  });S.mastery=mastery;S.stars=stars;S.streak=streak;S.best=best;
+}
+function answerProgressEffect(firstTry,correct,hints,mode){const reward=mode!=='diag'&&mode!=='mock',full=reward&&correct&&firstTry&&!hints;
+  return {masteryDelta:masteryDelta(firstTry,correct,hints),streak:reward?(full?'increment':'reset'):'none',stars:full?1:0,source:'answer'};}
+function sessionReviewed(n){return !S.log.some(a=>a&&a.session===n&&a.correct===null&&a.needsParentReview===true);}
+function sessionsReviewed(ns){return ns.every(sessionReviewed);}
 
 /* ============ badges ============ */
 const BADGES={
@@ -1323,15 +1339,15 @@ const BADGES={
  data:{name:'Data Detective 📊',test:()=>S.mastery.s8>=80},
  streak5:{name:'On Fire! 🔥 (5 in a row)',test:()=>S.streak>=5},
  streak10:{name:'Unstoppable ⚡ (10 in a row)',test:()=>S.streak>=10},
- sess1:{name:'Explorer 🕵️ (Session 1 done)',test:()=>S.done[0]},
- sess2:{name:'Data Star 📊 (Session 2 done)',test:()=>S.done[1]},
- sess3:{name:'Measure Hero 🏗️ (Session 3 done)',test:()=>S.done[2]},
- sess4:{name:'Shape Champion 🔷 (Session 4 done)',test:()=>S.done[3]},
+ sess1:{name:'Explorer 🕵️ (Session 1 done)',test:()=>S.done[0]&&sessionReviewed(0)},
+ sess2:{name:'Data Star 📊 (Session 2 done)',test:()=>S.done[1]&&sessionReviewed(1)},
+ sess3:{name:'Measure Hero 🏗️ (Session 3 done)',test:()=>S.done[2]&&sessionReviewed(2)},
+ sess4:{name:'Shape Champion 🔷 (Session 4 done)',test:()=>S.done[3]&&sessionReviewed(3)},
  ace:{name:'Exam Ace 🏆 (32+ in the mock)',test:()=>S.mockScore!=null&&S.mockScore>=32},
- ep1:{name:'Measurement Legend 🏋️',test:()=>S.done[5]},
- ep2:{name:'Data Boss 🧠',test:()=>S.done[6]},
- ep3:{name:'Shape Genius 💎',test:()=>S.done[7]},
- epall:{name:'Challenge Crusher 🏆⚡ (all Extra Practice done!)',test:()=>S.done[5]&&S.done[6]&&S.done[7]&&S.done[8]}};
+ ep1:{name:'Measurement Legend 🏋️',test:()=>S.done[5]&&sessionReviewed(5)},
+ ep2:{name:'Data Boss 🧠',test:()=>S.done[6]&&sessionReviewed(6)},
+ ep3:{name:'Shape Genius 💎',test:()=>S.done[7]&&sessionReviewed(7)},
+ epall:{name:'Challenge Crusher 🏆⚡ (all Extra Practice done!)',test:()=>S.done[5]&&S.done[6]&&S.done[7]&&S.done[8]&&sessionsReviewed([5,6,7,8])}};
 function checkBadges(){ const won=[];
   for(const k in BADGES){ if(!S.badges.includes(k)&&BADGES[k].test()){S.badges.push(k);won.push(BADGES[k].name);} }
   return won; }
@@ -1559,7 +1575,7 @@ function startQuiz(st){
       items=q.length?q.map(r=>makeItem(r.type)):pickPracticeItems(3);
     }
     else if(st.mode==='corrections'){
-      const wrong=S.log.filter(a=>a.mode==='mock'&&!a.correct);
+      const wrong=S.log.filter(a=>a.mode==='mock'&&a.correct===false);
       items=wrong.length?wrong.slice(0,8).map(a=>makeItem(a.type)):confidenceItems(3);
     }
     else if(st.mode==='confidence') items=confidenceItems(st.n||5);
@@ -1631,25 +1647,45 @@ function getUserAnswer(){ const it=curItem();
 // captures the real canvas JPEG, grades with a per-question rubric, and only
 // auto-marks correct when the model is confident and no human review is needed.
 function pencilRubric(it){
-  const half=Math.max(1,Math.floor(it.marks/2));
+  const questionMarkScheme=String(it.sol||'').replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim();
   return {maxMarks:it.marks,expected:String(it.ans),model:it.model||it.sol||'',
-    criteria:[
-      {label:'Correct concept and method',marks:half,misconceptions:'reversed shape, wrong property'},
-      {label:'Accurate result with correct labels and units',marks:it.marks-half,equivalents:'accept equivalent forms',partialCredit:true}
-    ]};
+    questionMarkScheme,
+    criteria:[{label:'Apply this question-specific mark scheme',marks:it.marks,
+      details:questionMarkScheme,equivalents:'accept mathematically equivalent drawings, labels and units',partialCredit:true}]};
+}
+function recordPendingPencilAttempt(it,png){
+  let a=S.log.find(x=>x&&x.id===it.id); if(a)return a;
+  a={id:it.id,type:it.type,skill:it.skill,mode:S.cur.mode,session:S.session,
+    prompt:it.prompt,ans:it.ans,user:'(drawing)',correct:null,firstTry:true,hints:hintsUsed,
+    marks:0,maxMarks:it.marks,timeS:Math.round((Date.now()-T0)/1000),png,ts:Date.now(),
+    pencil:true,needsParentReview:true,rubric:pencilRubric(it),grading:{status:'pending'}};
+  S.log.push(a);save();return a;
+}
+function finalisePencilAttempt(a,g){
+  if(a.gradingFinalised)return {correct:a.correct===true,applied:false};
+  const correct=g&&g.correct===true;
+  if(correct&&!a.pencilEffectApplied){a.pencilMasteryDelta=masteryDelta(true,true,a.hints);
+    a.progressEffect={masteryDelta:a.pencilMasteryDelta,streak:'increment',stars:1,source:'ai'};
+    a.pencilEffectApplied=true;a.pencilEffectSource='ai';}
+  a.correct=correct?true:null;a.marks=correct?a.maxMarks:0;a.needsParentReview=!correct;a.gradingFinalised=true;
+  a.grading=g?{status:'final',verdict:g.verdict,score:g.score,confidence:g.confidence,humanReview:g.humanReview,
+    transcription:g.transcription,feedback:g.feedback,criteria:g.criteria,gradedAt:g.gradedAt,
+    model:g.model,error:g.error||null}:{status:'final',error:'unavailable',feedback:'',criteria:[]};
+  replayProgressEffects();save();return {correct,applied:true};
 }
 async function gradePencilAnswer(it){
   const png=exportCanvas();
   showFB('hint','🖊️ Saving your work for marking…');
+  const attempt=recordPendingPencilAttempt(it,png);
   const sync=window.StudyDashSync; let g=null;
   if(sync&&typeof sync.gradePencil==='function'){
     try{ g=await sync.gradePencil({image:png,prompt:String(it.prompt).replace(/<[^>]*>/g,' '),
       expected:String(it.ans),maxMarks:it.marks,rubric:pencilRubric(it),confidenceThreshold:0.85}); }
     catch(_){ g=null; }
   }
-  recordPencilAttempt(it,png,g);
-  if(g&&g.correct===true){
-    S.streak++;S.best=Math.max(S.best,S.streak);S.stars++;
+  const result=finalisePencilAttempt(attempt,g);
+  if(result.correct){
+    if(result.applied)attempt.pencilStarApplied=true;
     const won=checkBadges();
     showFB('good',`Beautiful work! 🌟 Marked correct.${won.length?'<br>🏅 New badge: <b>'+won.join(', ')+'</b>!':''}`);
   } else {
@@ -1657,17 +1693,6 @@ async function gradePencilAnswer(it){
   }
   save();
   scheduleAdvance(1400);
-}
-function recordPencilAttempt(it,png,g){
-  const correct=g&&g.correct===true?true:null; // pending review unless confidently correct
-  if(correct===true) updateMastery(it.skill,true,true,hintsUsed);
-  S.log.push({id:it.id,type:it.type,skill:it.skill,mode:S.cur.mode,session:S.session,
-    prompt:it.prompt,ans:it.ans,user:'(drawing)',correct,firstTry:true,hints:hintsUsed,
-    marks:correct===true?it.marks:0,maxMarks:it.marks,timeS:Math.round((Date.now()-T0)/1000),
-    png,ts:Date.now(),pencil:true,needsParentReview:correct!==true,
-    grading:g?{verdict:g.verdict,score:g.score,confidence:g.confidence,humanReview:g.humanReview,
-      transcription:g.transcription,model:g.model,error:g.error||null}:{error:'unavailable'}});
-  save();
 }
 function qToken(){ return S.cur?(S.session+":"+S.qi+":"+S.cur.mode):null; }
 function scheduleAdvance(delay){ clearTimeout(advTimer); const tok=qToken(); advTimer=setTimeout(()=>{ if(!S.cur||qToken()!==tok) return; S.qi++; save(); renderQuestion(); }, delay); }
@@ -1689,8 +1714,6 @@ function doCheck(){ if(qLock) return;
   if(ok){
     qLock=true; const first=(attemptNo===1);
     recordAttempt(it,user,true,first);
-    if(first&&!hintsUsed){S.streak++;S.best=Math.max(S.best,S.streak);S.stars++;}
-    else S.streak=0;
     const won=checkBadges();
     const cheers=['Brilliant! 🌟','Yes! Nailed it! 🎯','Superstar! ⭐','You got it! 🙌','Perfect! 💯','Sharp thinking! 🧠'];
     showFB('good',`${pick(cheers)}${won.length?'<br>🏅 New badge: <b>'+won.join(', ')+'</b>!':''}`);
@@ -1703,7 +1726,7 @@ function doCheck(){ if(qLock) return;
       qLock=true; awaitChange=String(user);
       showFB('hint',`🤔 Not quite … here's a hint:<br><b>${it.hints[0]}</b><br><span class="small">Fix your working and try again!</span>`);
     } else {
-      qLock=true; recordAttempt(it,user,false,false); S.streak=0;
+      qLock=true; recordAttempt(it,user,false,false);
       S.retryQueue.push({type:it.type,reason:'auto'});
       showFB('bad',`Almost! The answer is <b>${String(it.ans).startsWith('<svg')?it.ans:esc(it.ans)}</b>.`);
       $('#fb').insertAdjacentHTML('beforeend',`<div class="sol"><b>💡 How it works:</b><br>${it.sol}</div>
@@ -1716,17 +1739,18 @@ function disableCheck(){ const b=$('#checkBtn'); if(b)b.disabled=true; }
 function showFB(kind,msg){ $('#fb').innerHTML=`<div class="feedback fb-${kind}">${msg}</div>`; }
 function recordAttempt(it,user,correct,firstTry){
   const png=canvasDirty()?exportCanvas():null;
-  updateMastery(it.skill,firstTry,correct,hintsUsed);
-  S.log.push({id:it.id,type:it.type,skill:it.skill,mode:S.cur.mode,session:S.session,
+  const a={id:it.id,type:it.type,skill:it.skill,mode:S.cur.mode,session:S.session,
     prompt:it.prompt,ans:it.ans,user:String(user),correct,firstTry,hints:hintsUsed,
     marks:correct?it.marks:0,maxMarks:it.marks,timeS:Math.round((Date.now()-T0)/1000),
-    png,ts:Date.now()});
-  save();
+    png,ts:Date.now()};
+  a.progressEffect=answerProgressEffect(firstTry,correct,hintsUsed,a.mode);S.log.push(a);replayProgressEffects();save();
 }
 function finishQuiz(){ clearTimeout(clockTimer); clearTimeout(advTimer);
   const mode=S.cur?S.cur.mode:null;
-  if(mode==='mock'){ const start=(S.cur&&S.cur.mockStart)||0; S.mockScore=Math.min(S.mockTotal,
-    S.log.filter(a=>a.mode==='mock'&&a.correct&&(a.ts||0)>=start).reduce((t,a)=>t+a.maxMarks,0)); }  // H-04: only this mock run counts
+  if(mode==='mock'){ const start=(S.cur&&S.cur.mockStart)||0;S.lastMockStart=start;
+    const run=S.log.filter(a=>a.mode==='mock'&&(a.ts||0)>=start);
+    const pending=run.some(a=>a.correct===null&&a.needsParentReview===true);
+    S.mockScore=pending?null:Math.min(S.mockTotal,run.reduce((t,a)=>t+(Number(a.marks)||0),0)); }  // H-04: only this mock run counts
   S.cur=null;
   const mid=Math.floor(SESSIONS[S.session].steps.length/2);
   if(!S.stretch[S.session]&&S.step>=mid){
@@ -1787,10 +1811,13 @@ function exportCanvas(){
 
 /* ============ submit ============ */
 function sessionAttempts(n){ return S.log.filter(a=>a.session===n); }
+function gradedSessionAttempts(n){return sessionAttempts(n).filter(a=>a.correct===true||a.correct===false);}
+function pendingSessionCount(n){return sessionAttempts(n).filter(a=>a.correct===null&&a.needsParentReview===true).length;}
 function summaryText(n){
-  const at=sessionAttempts(n); const ok=at.filter(a=>a.correct).length;
+  const at=gradedSessionAttempts(n),pending=pendingSessionCount(n); const ok=at.filter(a=>a.correct===true).length;
   const w=weakOrder();
-  let t=`Shape Dash P2 — ${S.name}, Session ${n+1} done! ✅ ${ok}/${at.length} correct`;
+  let t=`Shape Dash P2 — ${S.name}, Session ${n+1} done! ✅ ${ok}/${at.length} marked correct`;
+  if(pending)t+=` · ${pending} Pencil answer${pending>1?'s':''} waiting for review`;
   if(n===4&&S.mockScore!=null)t+=` · Mock exam: ${S.mockScore}/${S.mockTotal}`;
   t+=`. Strongest: ${SKILLS[w[w.length-1]].name}. Working on: ${SKILLS[w[0]].name}.`;
   return t; }
@@ -1800,12 +1827,12 @@ function buildPackage(n){
     badges:S.badges.map(k=>BADGES[k].name),bestStreak:S.best,stars:S.stars,
     retryQueue:S.retryQueue,attempts:sessionAttempts(n)}); }
 function renderSubmit(){
-  const n=S.session; const at=sessionAttempts(n); const ok=at.filter(a=>a.correct).length;
+  const n=S.session,at=gradedSessionAttempts(n),pending=pendingSessionCount(n); const ok=at.filter(a=>a.correct===true).length;
   const final=(n===4||n===8); const won=checkBadges();
   render(`${header(96)}<div class="card center">
     <div class="emoji-big">${final?'🏆':'🎉'}</div>
     <h1>Session ${n+1} finished!</h1>
-    <p class="big">You answered <b>${ok} of ${at.length}</b> correctly${n===4&&S.mockScore!=null?` and scored <b>${S.mockScore}/${S.mockTotal}</b> in your practice exam`:''}. ${ok/Math.max(1,at.length)>=0.75?'Amazing work! 🌟':'Great effort! 💪'}</p>
+    <p class="big">You have <b>${ok} of ${at.length}</b> marked correct${pending?`, with <b>${pending}</b> Pencil answer${pending>1?'s':''} waiting for Dad`:''}${n===4&&S.mockScore!=null?` and scored <b>${S.mockScore}/${S.mockTotal}</b> in your practice exam`:''}. ${ok/Math.max(1,at.length)>=0.75?'Amazing work! 🌟':'Great effort! 💪'}</p>
     ${won.length?`<div class="badges">${won.map(b=>`<span class="badge won">${b}</span>`).join('')}</div>`:''}
     <p class="sub">Your work saves to Dad automatically. All done here:</p>
     <div id="syncStatus" class="feedback">Saved on iPad · starting sync…</div>
@@ -1823,15 +1850,15 @@ function sessionSubmitRec(n){
 }
 async function submitCurrentSession(n){
   const rec=sessionSubmitRec(n); const el=$('#syncStatus'); const sync=window.StudyDashSync;
-  const at=sessionAttempts(n);
+  const at=gradedSessionAttempts(n),pending=pendingSessionCount(n);
   if(!sync||typeof sync.submitSession!=='function'){ if(el)el.textContent='Saved on this iPad ✓ (open online to sync to Dad)'; return; }
   if(el)el.textContent='Saved on iPad · Syncing…';
   try{
-    const env={session:n,learner:S.name,attempts:at.length,correct:at.filter(a=>a.correct===true).length,summary:summaryText(n)};
+    const env={clientTs:rec.created,session:n,learner:S.name,attempts:at.length,correct:at.filter(a=>a.correct===true).length,pendingReviews:pending,summary:summaryText(n)};
     const r=await sync.submitSession(rec.id,env);
     rec.status=r.status; save();
-    if(el)el.textContent=r.status==='synced'?'Synced with Dad ✓':'Saved offline · will retry automatically';
-  }catch(e){ if(el)el.textContent='Saved offline · will retry automatically'; }
+    if(el)el.textContent=r.status==='synced'?'Synced with Dad ✓':r.status==='blocked'?'Sync blocked · ask Dad to check access':r.status==='storage-failed'?'Not queued · iPad storage unavailable — export a backup':'Saved offline · will retry automatically';
+  }catch(e){ if(el)el.textContent='Could not queue · export a backup and try again'; }
 }
 function exportSession(n){
   const blob=new Blob([buildPackage(n)],{type:'application/json'});
@@ -1855,19 +1882,13 @@ function enterCode(){
 }
 
 /* ============ parent corner ============ */
+function parentIdentity(){const sync=window.StudyDashSync;return sync&&typeof sync.getIdentity==='function'?sync.getIdentity():{isParent:false};}
 function renderParentGate(){
-  if(!S.pin){
-    render(`${header(0)}<div class="card"><h2>Parent corner … first visit</h2>
-      <p>Create a 4 digit PIN so this area stays yours.</p>
-      <input class="ans" id="p1" type="tel" maxlength="4" placeholder="Choose PIN">
-      <input class="ans" id="p2" type="tel" maxlength="4" placeholder="Repeat PIN" style="margin-top:8px">
-      <button class="btn btn-main" onclick="const a=$('#p1').value,b=$('#p2').value;
-        if(a.length===4&&a===b){S.pin=a;save();renderParent('over');}else alert('PINs must match and be 4 digits.')">Save PIN</button>
-      <button class="btn btn-ghost" onclick="go()">Back</button></div>`);
-    return; }
+  const identity=parentIdentity();if(identity.isParent){renderParent('over');return;}
   render(`${header(0)}<div class="card"><h2>Parent corner</h2>
-    <input class="ans" id="pin" type="tel" maxlength="4" placeholder="Enter PIN">
-    <button class="btn btn-main" onclick="if($('#pin').value===S.pin)renderParent('over');else alert('Wrong PIN')">Open</button>
+    <p>Parent controls require the verified parent email. Sign in once through the Study Hub, then return here.</p>
+    <a class="btn btn-main linkbtn" href="../hub/">Open Study Hub parent sign-in</a>
+    <button class="btn btn-soft" onclick="renderParentGate()">I've signed in · check again</button>
     <button class="btn btn-ghost" onclick="go()">Back</button></div>`);
 }
 function pTabs(cur){
@@ -1881,13 +1902,14 @@ function estBand(){
   const avg=Object.values(S.mastery).reduce((a,b)=>a+b,0)/8;
   return avg>=75?'60–75 of 80 (projected)':avg>=55?'45–60 of 80 (projected)':'30–48 of 80 (projected)'; }
 function renderParent(tab){
+  if(!parentIdentity().isParent){renderParentGate();return;}
   let body='';
   if(tab==='over'){
-    const at=S.log; const ok=at.filter(a=>a.correct).length;
+    const at=S.log.filter(a=>a.correct===true||a.correct===false),pending=S.log.filter(a=>a.correct===null&&a.needsParentReview===true).length; const ok=at.filter(a=>a.correct===true).length;
     const w=weakOrder();
     body=`<h2>Overview</h2>
      <p><b>${esc(S.name)||'Learner'}</b> · Sessions done: <b>${S.done.filter(Boolean).length}/${S.done.length}</b> ·
-        Questions: <b>${at.length}</b> (${ok} correct) · Best streak: <b>${S.best}</b>
+        Marked questions: <b>${at.length}</b> (${ok} correct)${pending?` · <b>${pending}</b> waiting for review`:''} · Best streak: <b>${S.best}</b>
         ${S.mockScore!=null?` · Mock: <b>${S.mockScore}/${S.mockTotal}</b>`:''}</p>
      <p><b>Estimated Paper 2 band (out of 80): ${estBand()}</b></p>
      ${masteryHTML()}
@@ -1900,11 +1922,11 @@ function renderParent(tab){
     const at=S.log.slice(-120).reverse();
     body=`<h2>Every question</h2><p class="small">Tap a row to review handwriting, override the mark, comment, or assign a similar question. ✎ = handwriting captured.</p>
      <table class="dash"><tr><th>S·Mode</th><th>Skill</th><th>Her answer</th><th>Mark</th></tr>
-     ${at.map((a,i)=>{const ov=S.overrides[a.id];const ok=ov!=null?ov:a.correct;
+     ${at.map((a,i)=>{const ov=S.overrides[a.id];const ok=ov!=null?ov:a.correct;const mark=ok===null?'waiting for review':(ok?'✓':'✗');
        return `<tr onclick="renderPDetail(${S.log.indexOf(a)})" style="cursor:pointer">
         <td>${a.session+1}·${a.mode}</td><td>${SKILLS[a.skill].emoji} ${a.type}${a.png?' ✎':''}</td>
         <td>${esc(String(a.user).slice(0,14))}</td>
-        <td><span class="pill ${ok?'g':'b'}">${ok?'✓':'✗'}${ov!=null?' *':''}</span></td></tr>`;}).join('')}</table>
+        <td><span class="pill ${ok===null?'w':ok?'g':'b'}">${mark}${ov!=null?' *':''}</span></td></tr>`;}).join('')}</table>
      <p class="small">* = overridden by you</p>
      <h3>Assign extra practice</h3><p class="small">Send her a code by iMessage. She taps "🎁 code from Dad" and types it in.</p>
      <div class="rowflex">${Object.keys(SKILLS).map(s=>
@@ -1923,28 +1945,31 @@ function renderParent(tab){
   else{
     body=`<h2>Settings</h2>
      <p class="small">Learner name</p><input class="ans" id="setName" value="${esc(S.name)}">
-     <p class="small">Change PIN</p><input class="ans" id="setPin" type="tel" maxlength="4" placeholder="New 4 digit PIN">
-     <button class="btn btn-soft" onclick="const n=cleanName($('#setName').value);if(n)S.name=n;
-       const p=$('#setPin').value; if(p.length===4)S.pin=p; save(); alert('Saved.')">Save</button>
-      <button class="btn btn-ghost" onclick="if(confirm('Reset EVERYTHING? All progress will be lost.')){localStorage.removeItem('ddp2');location.reload();}">⚠️ Reset the whole app</button>`;
+     <button class="btn btn-soft" onclick="const n=cleanName($('#setName').value);if(n)S.name=n;save();alert('Saved.')">Save</button>
+       <button class="btn btn-ghost" onclick="if(confirm('Reset EVERYTHING? All progress will be lost.')){localStorage.removeItem('ddp2');location.reload();}">⚠️ Reset the whole app</button>`;
   }
   render(`${header(0)}<div class="card">${pTabs(tab)}${body}</div>`);
 }
 function renderPDetail(i){
+  if(!parentIdentity().isParent){renderParentGate();return;}
   const a=S.log[i]; if(!a){renderParent('q');return;}
   const ov=S.overrides[a.id]; const ok=ov!=null?ov:a.correct;
+  const pending=a.pencil===true&&a.correct===null&&a.needsParentReview===true;
+  const status=pending?'waiting for review':(ok?'correct':'incorrect');
+  const controls=pending?`<div class="feedback fb-hint">This Pencil answer must be approved or corrected through the durable Parent Corner review.<a class="btn btn-main linkbtn" href="../hub/">Open review in Study Hub</a></div>`:`
+   <div class="rowflex" style="margin-top:10px">
+     <button class="tool" onclick="S.overrides['${a.id}']=true;save();renderPDetail(${i})">Override: correct ✓</button>
+     <button class="tool" onclick="S.overrides['${a.id}']=false;save();renderPDetail(${i})">Override: incorrect ✗</button>
+     <button class="tool" onclick="delete S.overrides['${a.id}'];save();renderPDetail(${i})">Clear override</button>
+     <button class="tool" onclick="S.retryQueue.push({type:'${a.type}',reason:'parent'});save();alert('A similar question was added to her next Fix-it round.')">Assign similar ↻</button></div>`;
   render(`${header(0)}<div class="card">${pTabs('q')}
    <h2>Question review</h2>
    <p class="small">Session ${a.session+1} · ${a.mode} · ${SKILLS[a.skill].name} · ${a.timeS}s · hints used: ${a.hints} · source: ${TYPES[a.type]?'':''}${esc(a.type)}</p>
    <div class="qtext" style="font-size:18px">${a.prompt}</div>
    <p><b>Her answer:</b> ${esc(a.user)} &nbsp; <b>Expected:</b> ${esc(String(a.ans))} &nbsp;
-      <span class="pill ${ok?'g':'b'}">${ok?'correct':'incorrect'}${ov!=null?' (overridden)':''}</span></p>
+      <span class="pill ${pending?'w':ok?'g':'b'}">${status}${ov!=null?' (overridden)':''}</span></p>
    ${a.png?`<p class="small">Her handwritten working:</p><img class="hw" src="${a.png}">`:'<p class="small">No handwriting captured for this one.</p>'}
-   <div class="rowflex" style="margin-top:10px">
-     <button class="tool" onclick="S.overrides['${a.id}']=true;save();renderPDetail(${i})">Override: correct ✓</button>
-     <button class="tool" onclick="S.overrides['${a.id}']=false;save();renderPDetail(${i})">Override: incorrect ✗</button>
-     <button class="tool" onclick="delete S.overrides['${a.id}'];save();renderPDetail(${i})">Clear override</button>
-     <button class="tool" onclick="S.retryQueue.push({type:'${a.type}',reason:'parent'});save();alert('A similar question was added to her next Fix-it round.')">Assign similar ↻</button></div>
+   ${controls}
    <p class="small" style="margin-top:10px">Comment (she'll see this if you review together; also included in exports):</p>
    <textarea class="note" id="cmt">${esc(S.comments[a.id]||'')}</textarea>
    <button class="btn btn-soft" onclick="S.comments['${a.id}']=$('#cmt').value;save();alert('Comment saved.')">Save comment</button>
@@ -2003,8 +2028,21 @@ function exportAll(){
 }
 
 /* ============ boot ============ */
+let pencilReviewSyncBound=false;
+function bindPencilReviewSync(){
+  if(pencilReviewSyncBound)return;
+  const sync=window.StudyDashSync;
+  if(!sync||typeof sync.onPencilReviews!=='function'||typeof sync.applyPencilReviewsToState!=='function')return;
+  pencilReviewSyncBound=true;
+  sync.onPencilReviews(reviews=>{
+    if(sync.applyPencilReviewsToState(S,reviews)>0){checkBadges();save();}
+  });
+}
+window.addEventListener('studydash-sync-ready',bindPencilReviewSync);
+setTimeout(bindPencilReviewSync,0);
 go();
 </script>
+<script src="../config.js"></script>
 <script type="module" src="../sync.js"></script>
 </body>
 </html>

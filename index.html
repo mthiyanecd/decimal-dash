@@ -727,7 +727,7 @@ function mockSet(){
 <script>
 "use strict";
 /* ============ state ============ */
-const DEFAULT={name:'',pin:'',session:0,step:0,qi:0,cur:null,log:[],retryQueue:[],
+const DEFAULT={name:'',session:0,step:0,qi:0,cur:null,log:[],retryQueue:[],
   mastery:{s1:50,s2:50,s3:50,s4:50,s5:50,s6:50,s7:50,s8:50},
   streak:0,best:0,badges:[],stars:0,stretch:[false,false,false,false],
   mockScore:null,mockTotal:10,done:[false,false,false,false],overrides:{},comments:{},
@@ -1175,11 +1175,11 @@ async function submitCurrentSession(n){
   if(!sync||typeof sync.submitSession!=='function'){ if(el)el.textContent='Saved on this iPad ✓ (open online to sync to Dad)'; return; }
   if(el)el.textContent='Saved on iPad · Syncing…';
   try{
-    const env={session:n,learner:S.name,attempts:at.length,correct:at.filter(a=>a.correct===true).length,summary:summaryText(n)};
+    const env={clientTs:rec.created,session:n,learner:S.name,attempts:at.length,correct:at.filter(a=>a.correct===true).length,summary:summaryText(n)};
     const r=await sync.submitSession(rec.id,env);
     rec.status=r.status; save();
-    if(el)el.textContent=r.status==='synced'?'Synced with Dad ✓':'Saved offline · will retry automatically';
-  }catch(e){ if(el)el.textContent='Saved offline · will retry automatically'; }
+    if(el)el.textContent=r.status==='synced'?'Synced with Dad ✓':r.status==='blocked'?'Sync blocked · ask Dad to check access':r.status==='storage-failed'?'Not queued · iPad storage unavailable — export a backup':'Saved offline · will retry automatically';
+  }catch(e){ if(el)el.textContent='Could not queue · export a backup and try again'; }
 }
 // Explicit backup export (not the submission transport). Revokes the object URL (audit L-02).
 function exportSession(n){
@@ -1204,19 +1204,13 @@ function enterCode(){
 }
 
 /* ============ parent corner ============ */
+function parentIdentity(){const sync=window.StudyDashSync;return sync&&typeof sync.getIdentity==='function'?sync.getIdentity():{isParent:false};}
 function renderParentGate(){
-  if(!S.pin){
-    render(`${header(0)}<div class="card"><h2>Parent corner … first visit</h2>
-      <p>Create a 4 digit PIN so this area stays yours.</p>
-      <input class="ans" id="p1" type="tel" maxlength="4" placeholder="Choose PIN">
-      <input class="ans" id="p2" type="tel" maxlength="4" placeholder="Repeat PIN" style="margin-top:8px">
-      <button class="btn btn-main" onclick="const a=$('#p1').value,b=$('#p2').value;
-        if(a.length===4&&a===b){S.pin=a;save();renderParent('over');}else alert('PINs must match and be 4 digits.')">Save PIN</button>
-      <button class="btn btn-ghost" onclick="go()">Back</button></div>`);
-    return; }
+  const identity=parentIdentity();if(identity.isParent){renderParent('over');return;}
   render(`${header(0)}<div class="card"><h2>Parent corner</h2>
-    <input class="ans" id="pin" type="tel" maxlength="4" placeholder="Enter PIN">
-    <button class="btn btn-main" onclick="if($('#pin').value===S.pin)renderParent('over');else alert('Wrong PIN')">Open</button>
+    <p>Parent controls require the verified parent email. Sign in once through the Study Hub, then return here.</p>
+    <a class="btn btn-main linkbtn" href="hub/">Open Study Hub parent sign-in</a>
+    <button class="btn btn-soft" onclick="renderParentGate()">I've signed in · check again</button>
     <button class="btn btn-ghost" onclick="go()">Back</button></div>`);
 }
 function pTabs(cur){
@@ -1230,6 +1224,7 @@ function estBand(){
   const avg=Object.values(S.mastery).reduce((a,b)=>a+b,0)/8;
   return avg>=75?'7–9 (projected)':avg>=55?'5–7 (projected)':'3–6 (projected)'; }
 function renderParent(tab){
+  if(!parentIdentity().isParent){renderParentGate();return;}
   let body='';
   if(tab==='over'){
     const at=S.log; const ok=at.filter(a=>a.correct).length;
@@ -1272,14 +1267,13 @@ function renderParent(tab){
   else{
     body=`<h2>Settings</h2>
      <p class="small">Learner name</p><input class="ans" id="setName" value="${esc(S.name)}">
-     <p class="small">Change PIN</p><input class="ans" id="setPin" type="tel" maxlength="4" placeholder="New 4 digit PIN">
-     <button class="btn btn-soft" onclick="const n=cleanName($('#setName').value);if(n)S.name=n;
-       const p=$('#setPin').value; if(p.length===4)S.pin=p; save(); alert('Saved.')">Save</button>
+     <button class="btn btn-soft" onclick="const n=cleanName($('#setName').value);if(n)S.name=n;save();alert('Saved.')">Save</button>
      <button class="btn btn-ghost" onclick="if(confirm('Reset EVERYTHING? All progress will be lost.')){localStorage.removeItem('dd1');location.reload();}">⚠️ Reset the whole app</button>`;
   }
   render(`${header(0)}<div class="card">${pTabs(tab)}${body}</div>`);
 }
 function renderPDetail(i){
+  if(!parentIdentity().isParent){renderParentGate();return;}
   const a=S.log[i]; if(!a){renderParent('q');return;}
   const ov=S.overrides[a.id]; const ok=ov!=null?ov:a.correct;
   render(`${header(0)}<div class="card">${pTabs('q')}
@@ -1357,6 +1351,7 @@ function exportAll(){
 /* ============ boot ============ */
 go();
 </script>
+<script src="config.js"></script>
 <script type="module" src="sync.js"></script>
 </body>
 </html>

@@ -7,6 +7,10 @@ for (const [name, rel] of [["Decimal", "index.html"], ["Shape", "paper2/index.ht
   const s = readSource(rel);
   assert.ok(/sessionSubmissions:\{\}/.test(s), name + ": sessionSubmissions must be in DEFAULT");
   assert.ok(/function submitCurrentSession/.test(s) && /submitSession\(/.test(s), name + ": completion must call the submitSession API");
+  assert.ok(/clientTs:rec\.created/.test(s), name + ": Sync again must reuse the original client timestamp");
+  assert.ok(/Sync blocked/.test(s), name + ": permanent authorization errors must not be called offline");
+  assert.ok(/storage-failed/.test(s) && /could not queue|storage/i.test(s),
+    name + ": local storage failure must not promise an automatic retry");
   assert.ok(/Sync again/.test(s), name + ": completion shows a Sync again control immediately");
   assert.ok(/Export backup/.test(s) && /function exportSession/.test(s), name + ": JSON download demoted to Export backup");
   assert.ok(/Synced with Dad|Saved offline/.test(s), name + ": lifecycle status copy present");

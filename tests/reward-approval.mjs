@@ -2,9 +2,15 @@
 // write); the parent APPROVES to spend exactly one Key. Everything stays
 // transactional + idempotent, and rejection never touches the vault.
 import assert from "node:assert";
-import { loadSync } from "./helpers/load-sync-runtime.mjs";
+import { loadSync, readSource } from "./helpers/load-sync-runtime.mjs";
 
-const { sync, fs } = await loadSync({ pathname: "/hub/" });
+const parentEmail = "parent@example.test";
+const { sync, fs } = await loadSync({
+  pathname: "/hub/",
+  authUser: { uid: "parent", email: parentEmail, emailVerified: true, isAnonymous: false },
+  authClaims: { familyId: "zimmy", role: "parent" },
+  StudyDashConfig: { parentEmails: [parentEmail] }
+});
 const VAULT = "families/zimmy/vault/main";
 const RED = id => "families/zimmy/redemptions/" + id;
 
@@ -55,5 +61,24 @@ assert.equal(fs.store.get(RED("r3")).status, "rejected");
 assert.equal(fs.writes.filter(w => w.path === VAULT).length, vaultWritesPreReject, "reject wrote nothing to vault");
 const rej2 = await sync.rejectRedemption({ requestId: "r3" });
 assert.equal(rej2.status, "duplicate", "reject is idempotent");
+assert.equal(fs.store.get("families/zimmy/vault/main").usedKeys, 2, "reject leaves the vault untouched");
+
+// Mock-exam Keys are derived in the trusted parent view from pending-safe state.
+// They are not stored as examKeys, but an explicit parent approval must be able
+// to spend one of them instead of showing a Key that can never be used.
+fs.store.set("families/zimmy/vault/main", { examKeys: 0, usedKeys: 0, openedChests: 0 });
+fs.store.set("families/zimmy/redemptions/r-mock", {
+  family: "zimmy", ownerUid: "anon", rewardId: "reward-mock", rewardDesc: "Mock reward",
+  level: "Star", status: "pending", ts: 3, createdAt: 3
+});
+const mockApproval = await sync.approveRedemption({ requestId: "r-mock", learnerKeys: 1 });
+assert.equal(mockApproval.status, "approved");
+assert.equal(fs.store.get("families/zimmy/vault/main").usedKeys, 1, "one pending-safe mock Key is spent");
+assert.equal(fs.store.get("families/zimmy/redemptions/r-mock").approvedLearnerKeys, 1,
+  "the parent-approved mock-Key basis is durable on the redemption");
+
+const hubSource = readSource("hub/index.html");
+assert.match(hubSource, /approveRedemption\(\{requestId:r\.id,learnerKeys:lastVC\.mockKeys\}\)/,
+  "Hub approval must pass its pending-safe mock-Key total");
 
 console.log("reward approval contract passed");

@@ -10,13 +10,18 @@ for (const [name, rel] of [["Shape", "paper2/index.html"], ["Explorer", "history
   assert.ok(!/Mine matches/.test(s) && !/Not quite yet/.test(s), name + ": self-mark UI must be gone");
   assert.ok(/gradePencil\(/.test(s), name + ": must call the gradePencil adapter");
   assert.ok(/function gradePencilAnswer/.test(s) && /function pencilRubric/.test(s), name + ": rubric-based grading required");
-  // Pending path: correct:null + needsParentReview, no mastery/stars unless confidently correct.
-  const rp = s.slice(s.indexOf("function recordPencilAttempt"));
-  assert.ok(/correct=g&&g\.correct===true\?true:null/.test(rp.replace(/\s/g, "")), name + ": uncertain result stored as correct:null");
-  assert.ok(/needsParentReview:correct!==true/.test(rp.replace(/\s/g, "")), name + ": needsParentReview when not auto-correct");
-  assert.ok(/if\(correct===true\)updateMastery/.test(rp.replace(/\s/g, "")), name + ": mastery only updated when confidently correct");
+  // Pending path is durable before transport; only a fully validated result may apply progress.
+  const pending = s.slice(s.indexOf("function recordPendingPencilAttempt"), s.indexOf("async function gradePencilAnswer"));
+  const finalise = s.slice(s.indexOf("function finalisePencilAttempt"), s.indexOf("async function gradePencilAnswer"));
+  assert.ok(/correct:null/.test(pending), name + ": pending result stored as correct:null");
+  assert.ok(/needsParentReview:true/.test(pending), name + ": pending result requires parent review");
+  const compactFinalise = finalise.replace(/\s/g, "");
+  assert.ok(/if\(correct&&!a\.pencilEffectApplied\).*progressEffect=\{.*source:'ai'/.test(compactFinalise),
+    name + ": confidently correct AI work records exactly one replayable effect");
+  assert.ok(/replayProgressEffects\(\)/.test(finalise),
+    name + ": AI progress must be derived by chronological replay");
   // capture the real canvas JPEG
-  assert.ok(/exportCanvas\(\)/.test(rp) || /const png=exportCanvas/.test(s.replace(/\s/g, "")), name + ": captures the real canvas image");
+  assert.ok(/constpng=exportCanvas\(\)/.test(s.replace(/\s/g, "")), name + ": captures the real canvas image");
 }
 
 const hub = readSource("hub/index.html");
